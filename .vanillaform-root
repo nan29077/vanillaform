@@ -1,0 +1,6 @@
+이 파일은 바닐라폼 독립 Git 이력의 시작점을 표시합니다.
+
+- 새 원격: https://github.com/nan29077/vanillaform.git
+- 로컬 개발 포트: 3026
+- DB 환경변수: VANILLAFORM_DATABASE_URL
+- 외부 연동 기본값: 차단

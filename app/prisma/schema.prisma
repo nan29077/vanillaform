@@ -1,0 +1,1885 @@
+generator client {
+  provider      = "prisma-client-js"
+  output        = "../src/generated/prisma"
+  binaryTargets = ["native", "windows", "darwin-arm64"]
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("VANILLAFORM_DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// 사용자 & 역할
+// ─────────────────────────────────────────────
+
+enum Role {
+  SUPER_ADMIN
+  NODE
+  MIDDLE_ADMIN
+  BRAND_ADMIN
+  SELLER
+  BUYER
+}
+
+// 중간관리자 마진 산정 방식
+enum MarginMethod {
+  PERCENTAGE // 퍼센테이지: marginRate(%) x 기준가(공급가 or 판매가)
+  SUPPLY_BASE // 공급가 베이스(직접입력): 상품마다 공급가/마진/판매가를 직접 입력
+}
+
+// 퍼센테이지 방식일 때 기준이 되는 가격
+enum MarginBase {
+  SUPPLY // 공급가 기준
+  SALE // 판매가 기준
+}
+
+// 상품 제공 방식
+enum PriceModel {
+  SUPPLY // 공급가로 제공: 브랜드는 공급가만 입력, 셀러가 판매가 직접 결정
+  COMMISSION // 수수료로 제공: 브랜드가 판매가·수수료 지정, 셀러는 고정 판매가로만 판매
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String
+  password      String?
+  role          Role      @default(BUYER)
+  avatar        String?
+  image         String?
+  gender        String?
+  phone         String?
+  birthday      String?   // 생년월일 (YYYY-MM-DD)
+  // 회원 기본 주소 (가입 시 선택 입력) — 배송지(Address)와 별개의 프로필 주소
+  zipCode       String?   // 우편번호
+  address1      String?   // 도로명/지번 주소
+  address2      String?   // 상세주소
+  isActive      Boolean   @default(true)
+  // 임시 비밀번호(비밀번호 초기화) 발급 시 true → 로그인 직후 강제 재설정
+  mustResetPassword Boolean @default(false)
+  // 셀러 정산 계좌 정보
+  bankName      String?
+  bankAccount   String?
+  bankHolder    String?
+  // 셀러 추천인(멘토-멘티) 시스템
+  sellerReferralCode String?  @unique // 셀러가입 추천인코드 (셀러 계정 생성 시 자동 발급, 예: SB4K9M2X)
+  referredBySellerCode String?         // 가입 시 입력한 셀러가입 추천인코드
+  mentorId       String?               // 추천인(멘토) 셀러의 userId
+  mentor         User?   @relation("MentorMentee", fields: [mentorId], references: [id])
+  mentees        User[]  @relation("MentorMentee")
+  managedByMiddleAdminId String?
+  managedByMiddleAdmin   MiddleAdminProfile? @relation("MiddleAdminManagedUsers", fields: [managedByMiddleAdminId], references: [id])
+  emailVerified DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  buyerProfile       BuyerProfile?
+  sellerProfile      SellerProfile?
+  brandProfile       BrandProfile?
+  middleAdminProfile MiddleAdminProfile?
+
+  accounts Account[]
+  sessions Session[]
+
+  orders          Order[]
+  reviews         Review[]
+  cartItems       CartItem[]
+  addresses       Address[]
+  notifications   Notification[]
+  wishlists       Wishlist[]
+  couponClaims    UserCoupon[]
+  contentLikes    ContentLike[]
+  contentComments ContentComment[]
+  gameParticipations GameParticipant[]
+  gameCoupons        UserGameCoupon[]
+  // 노드가 마진 설정 후 최종 등록(승인)한 상품들
+  nodeApprovedProducts Product[]        @relation("NodeApprovedProducts")
+  // 노드가 관리하는 중간관리자 / 브랜드
+  nodeManagedMiddleAdmins MiddleAdminProfile[] @relation("NodeManagedMiddleAdmins")
+  nodeManagedBrands       BrandProfile[]       @relation("NodeManagedBrands")
+  // 노드가 받는 정산 내역
+  nodeSettlements         NodeSettlement[]     @relation("NodeUserSettlements")
+  // 관리자가 생성한 수기 정산 내역
+  adminManualSettlements  ManualSettlement[]   @relation("AdminManualSettlements")
+  // 멘토로서 받는 커미션
+  mentorCommissions       MentorCommission[]   @relation("MentorCommissions")
+  // 멘티로서 발생한 커미션
+  menteeCommissions       MentorCommission[]   @relation("MenteeCommissions")
+  // 패키지 상품 (등록자)
+  packageProducts         PackageProduct[]     @relation("PackageCreator")
+  // 패키지 발주서 수신자
+  packagePurchaseOrders   PackagePurchaseOrder[] @relation("PackagePurchaseOrderRecipient")
+
+  @@map("users")
+}
+
+// ─────────────────────────────────────────────
+// 중간관리자 프로필 (브랜드.셀러 모집/관리)
+// ─────────────────────────────────────────────
+
+model MiddleAdminProfile {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  contactPhone String?
+  isActive     Boolean  @default(true)
+  isApproved   Boolean  @default(true)
+  commissionRate Decimal @default(5) @db.Decimal(5, 2)
+
+  // 사업자 정보 (정산용)
+  bizNumber     String?
+  companyName   String?
+  bankName      String?
+  accountNumber String?
+  accountHolder String?
+
+  // 담당 노드 (NODE 계정 User.id)
+  assignedNodeId String?
+  assignedNode   User?   @relation("NodeManagedMiddleAdmins", fields: [assignedNodeId], references: [id])
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  brands       BrandProfile[]
+  sellers      SellerProfile[]
+  commissions        MiddleAdminCommission[]
+  settlements        MiddleAdminSettlement[]
+  managerSettlements MiddleManagerSettlement[]
+  brandSettlements   BrandSettlement[]       @relation("MiddleAdminBrandSettlements")
+  managedUsers       User[]                  @relation("MiddleAdminManagedUsers")
+  products           Product[]               @relation("MiddleAdminProducts")
+
+  @@map("middle_admin_profiles")
+}
+
+// ─────────────────────────────────────────────
+// 구매회원 프로필 (셀러 귀속)
+// ─────────────────────────────────────────────
+
+model BuyerProfile {
+  id                 String         @id @default(cuid())
+  userId             String         @unique
+  user               User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  primarySellerId    String?
+  primarySeller      SellerProfile? @relation("PrimarySellerFans", fields: [primarySellerId], references: [id])
+  referralCode       String?
+  referredBySellerId String?
+  referredBySeller   SellerProfile? @relation("ReferredBuyers", fields: [referredBySellerId], references: [id])
+  liveAlimtalkOptIn  Boolean        @default(true)
+  notifyOrder        Boolean        @default(true)
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  follows              SellerFollower[]
+  channelVerifications ChannelVerification[]
+
+  @@map("buyer_profiles")
+}
+
+// ─────────────────────────────────────────────
+// 셀러 프로필 (인플루언서)
+// ─────────────────────────────────────────────
+
+model SellerProfile {
+  id              String  @id @default(cuid())
+  userId          String  @unique
+  user            User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  slug            String  @unique
+  shopName        String
+  shopDescription String? @db.Text
+  shopBanner      String?
+  shopLogo        String?
+  category        String?
+  mood            String?
+  shopThemeColor  String? @default("#377255")
+  instagramUrl    String?
+  youtubeUrl      String?
+  tiktokUrl       String?
+  facebookUrl     String?
+  twitterUrl      String?
+  youtubeChannelId String?
+  // YouTube OAuth 2.0 (채팅 쓰기·채널 자동 감지용 — youtube.force-ssl 스코프)
+  youtubeAccessToken  String?   @db.Text
+  youtubeRefreshToken String?   @db.Text
+  youtubeTokenExpiry  DateTime?
+  youtubeChannelTitle String?
+  isManualLive         Boolean @default(false)
+  livePlatform         String?
+  liveLink             String?
+  manualLiveProductIds String? @db.Text
+  isApproved           Boolean @default(false)
+  isRecommended   Boolean @default(false)
+  commissionRate  Decimal @default(5) @db.Decimal(5, 2)
+  totalFans       Int     @default(0)
+  totalSales      Decimal @default(0) @db.Decimal(12, 2)
+
+  middleAdminId         String?
+  middleAdmin           MiddleAdminProfile? @relation(fields: [middleAdminId], references: [id])
+  middleAdminMarginRate Decimal             @default(0) @db.Decimal(5, 2)
+
+  businessType           String? @default("non_business")
+  // 사업자 여부 (true=사업자, false=비사업자) — 출금 시 원천징수 3.3% 적용 판단 기준
+  isBusinessOperator     Boolean @default(false)
+  representativeName     String?
+  businessRegistrationNo String?
+  telecomSalesLicenseNo  String?
+  businessAddress        String?
+  businessCategory       String?
+
+  referralCode           String? @unique
+  referralCommissionRate Decimal @default(0) @db.Decimal(5, 2)
+  referralDiscountRate   Decimal @default(0) @db.Decimal(5, 2)
+  pickDiscountRate       Decimal @default(0) @db.Decimal(5, 2)
+  totalReferralEarnings  Decimal @default(0) @db.Decimal(12, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  fans                 BuyerProfile[]        @relation("PrimarySellerFans")
+  referredBuyers       BuyerProfile[]        @relation("ReferredBuyers")
+  followers            SellerFollower[]
+  shopProducts         SellerShopProduct[]
+  registeredProducts   Product[]             @relation("SellerRegisteredProducts")
+  campaigns            GroupBuyCampaign[]
+  settlements          Settlement[]
+  contentPosts         ContentPost[]
+  orders               Order[]               @relation("SellerOrders")
+  referralCommissions  ReferralCommission[]
+  channelVerifications ChannelVerification[]
+  liveStreams          LiveStream[]
+  liveChannelNotices   LiveChannelNotice[]
+  games                Game[]
+
+  featureGroupBuy     Boolean @default(true)
+  featureContent      Boolean @default(true)
+  featureLiveCommerce Boolean @default(false)
+  shopDirectExpose    Boolean @default(false)
+  shopNumbering       Boolean @default(false)
+
+  // 장바구니 할인 (셀러 부담) — 셀러별 소계가 기준금액 이상이면 % 할인. 할인액은 셀러 정산에서 차감.
+  cartDiscountEnabled   Boolean @default(false)
+  cartDiscountThreshold Decimal @default(0) @db.Decimal(12, 2)
+  cartDiscountRate      Decimal @default(0) @db.Decimal(5, 2)
+
+  // 라이브 채널 사이트 설정 (JSON 직렬화)
+  liveSiteSettings    String? @db.Text
+
+  payoutRequests PayoutRequest[]
+  alimtalkAccount AlimtalkAccount?
+  chatBotConfig   ChatBotConfig?
+  aligoSendLogs   AligoSendLog[]
+
+  // 셀러 직접 등록 일반상품 & 셀러샵 노출 설정
+  directProducts DirectProduct[]
+  shopExposure   ShopDirectProductExposure?
+
+  @@map("seller_profiles")
+}
+
+// ─────────────────────────────────────────────
+// 셀러 일반상품 (셀러가 직접 등록하는 자체 상품 — 관리자 승인 불필요)
+// ─────────────────────────────────────────────
+
+model DirectProduct {
+  id          String        @id @default(cuid())
+  sellerId    String
+  seller      SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  name        String
+  price       Decimal       @db.Decimal(10, 2)
+  description String?       @db.Text
+  images      String?       @db.Text // JSON 배열 (이미지 URL)
+  stock       Int           @default(0)
+  shippingFee Decimal       @default(0) @db.Decimal(10, 2) // 배송비 (원, 0=무료배송)
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([sellerId])
+  @@map("direct_products")
+}
+
+// 셀러샵 "일반상품" 탭 노출 설정 (셀러당 1개)
+// productIds: 노출할 DirectProduct id 배열 (JSON, MySQL 배열 미지원)
+model ShopDirectProductExposure {
+  id              String        @id @default(cuid())
+  sellerProfileId String        @unique
+  sellerProfile   SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
+  isEnabled       Boolean       @default(false)
+  productIds      String?       @db.Text // JSON 배열 (선택된 상품 id)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@map("shop_direct_product_exposures")
+}
+
+model SellerFollower {
+  id        String        @id @default(cuid())
+  buyerId   String
+  buyer     BuyerProfile  @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  sellerId  String
+  seller    SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  createdAt DateTime      @default(now())
+
+  @@unique([buyerId, sellerId])
+  @@map("seller_followers")
+}
+
+// ─────────────────────────────────────────────
+// 추천인 커미션 (레퍼럴 수입)
+// ─────────────────────────────────────────────
+
+enum CommissionStatus {
+  PENDING
+  CONFIRMED
+  PAID
+  CANCELLED
+}
+
+model ReferralCommission {
+  id               String           @id @default(cuid())
+  sellerId         String
+  seller           SellerProfile    @relation(fields: [sellerId], references: [id])
+  orderId          String
+  order            Order            @relation(fields: [orderId], references: [id])
+  buyerUserId      String
+  orderAmount      Decimal          @db.Decimal(12, 2)
+  commissionRate   Decimal          @db.Decimal(5, 2)
+  commissionAmount Decimal          @db.Decimal(12, 2)
+  source           String           @default("referral")
+  status           CommissionStatus @default(PENDING)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@map("referral_commissions")
+}
+
+// ─────────────────────────────────────────────
+// 채널 인증 (유튜브/인스타 구독 인증)
+// ─────────────────────────────────────────────
+
+enum VerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model ChannelVerification {
+  id            String             @id @default(cuid())
+  buyerId       String
+  buyer         BuyerProfile       @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  sellerId      String
+  seller        SellerProfile      @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  channelType   String
+  screenshotUrl String?            @db.LongText
+  status        VerificationStatus @default(PENDING)
+  verifiedAt    DateTime?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@unique([buyerId, sellerId, channelType])
+  @@map("channel_verifications")
+}
+
+// ─────────────────────────────────────────────
+// 브랜드 프로필
+// ─────────────────────────────────────────────
+
+model BrandProfile {
+  id                     String   @id @default(cuid())
+  userId                 String   @unique
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brandName              String
+  brandLogo              String?
+  brandBanner            String?
+  description            String?  @db.Text
+  isApproved             Boolean  @default(false)
+  businessRegistrationNo String?
+  representativeName     String?
+  businessAddress        String?
+  businessType           String?
+  businessCategory       String?
+  contactPhone           String?
+  contactEmail           String?
+
+  // 정산용 계좌 정보
+  bankName               String?
+  accountNumber          String?
+  accountHolder          String?
+
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  middleAdminId String?
+  middleAdmin   MiddleAdminProfile? @relation(fields: [middleAdminId], references: [id])
+  marginMethod  MarginMethod        @default(PERCENTAGE)
+  marginBase    MarginBase          @default(SUPPLY)
+  marginRate    Decimal             @default(0) @db.Decimal(5, 2)
+  commissionRate Decimal            @default(5) @db.Decimal(5, 2)
+
+  // 담당 노드 (중간관리자 없이 노드에 직접 귀속된 브랜드)
+  assignedNodeId String?
+  assignedNode   User?   @relation("NodeManagedBrands", fields: [assignedNodeId], references: [id])
+
+  products     Product[]
+  settlements  BrandSettlement[]
+
+  @@map("brand_profiles")
+}
+
+// ─────────────────────────────────────────────
+// 브랜드 정산 (수기 처리)
+// ─────────────────────────────────────────────
+
+model BrandSettlement {
+  id          String       @id @default(cuid())
+  brandId     String
+  brand       BrandProfile @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  periodLabel String
+  totalSupply Decimal      @db.Decimal(12, 2)
+  totalSales  Decimal      @db.Decimal(12, 2)
+  // 실지급액 = 공급가 − 플랫폼 수수료(brandFeeRate × 1.1). 브랜드 정산 가용액에서 차감하는 기준값.
+  // (totalSupply 는 수수료 차감 전 공급가라 지급액과 단위가 달라 차감 기준으로 쓸 수 없다)
+  settlementAmount Decimal? @db.Decimal(12, 2)
+  orderCount  Int          @default(0)
+  isPaid      Boolean      @default(false)
+  memo        String?      @db.Text
+  paidAt      DateTime?
+  // 세금계산서
+  invoiceStatus      String    @default("NONE") // NONE | REQUESTED | ISSUED
+  invoiceRequestedAt DateTime?
+  invoiceIssuedAt    DateTime?
+  invoiceNumber      String?
+  // 생성 주체: null=최고관리자, 값있음=중간관리자 직접 생성
+  middleAdminId String?
+  middleAdmin   MiddleAdminProfile? @relation("MiddleAdminBrandSettlements", fields: [middleAdminId], references: [id])
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@map("brand_settlements")
+}
+
+// ─────────────────────────────────────────────
+// 카테고리 (계층 구조 지원)
+// ─────────────────────────────────────────────
+
+model Category {
+  id          String     @id @default(cuid())
+  name        String     @unique
+  slug        String     @unique
+  icon        String?
+  image       String?
+  description String?
+  sortOrder   Int        @default(0)
+  isActive    Boolean    @default(true)
+  parentId    String?
+  parent      Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryTree")
+  createdAt   DateTime   @default(now())
+
+  products Product[]
+
+  @@index([parentId])
+  @@map("categories")
+}
+
+// ─────────────────────────────────────────────
+// 상품 (브랜드/관리자가 등록)
+// ─────────────────────────────────────────────
+
+model Product {
+  id                String        @id @default(cuid())
+  name              String
+  slug              String        @unique
+  description       String?       @db.Text
+  detailContent     String?       @db.Text
+  basePrice         Decimal       @db.Decimal(12, 2)
+  comparePrice      Decimal?      @db.Decimal(12, 2)
+  supplyPrice       Decimal?      @db.Decimal(12, 2)
+  middleAdminMargin Decimal?      @db.Decimal(12, 2)
+  adminMargin       Int           @default(0)           // 관리자가 설정한 마진 금액 (원)
+  // 제공 방식: SUPPLY(공급가 제공 - 셀러가 판매가 결정) / COMMISSION(수수료 제공 - 판매가·수수료 고정)
+  priceModel        PriceModel    @default(SUPPLY)
+  commissionRate    Decimal?      @db.Decimal(5, 2)  // 수수료 제공 시 셀러 수수료율(%)
+  sellerCommissionAmount Decimal? @db.Decimal(12, 2) // 수수료 제공 시 셀러 수수료 금액(정액)
+  categoryId        String?
+  category          Category?     @relation(fields: [categoryId], references: [id])
+  brandId           String?
+  brand             BrandProfile? @relation(fields: [brandId], references: [id])
+  middleAdminId     String?
+  middleAdmin       MiddleAdminProfile? @relation("MiddleAdminProducts", fields: [middleAdminId], references: [id])
+  // ── 노드(NODE) 마진 단계 (nodeEnabled=true 일 때 사용) ──
+  nodeMargin        Decimal?      @db.Decimal(12, 2) // 노드가 설정한 마진 (금액 또는 비율)
+  nodeMarginType    String?       // "AMOUNT" | "RATE"
+  nodeApprovedAt    DateTime?     // 노드가 최종 등록(마진 설정 완료)한 시각
+  nodeId            String?       // 최종 등록한 노드 계정 (User.id)
+  node              User?         @relation("NodeApprovedProducts", fields: [nodeId], references: [id])
+  sellerId          String?
+  registrarSeller   SellerProfile? @relation("SellerRegisteredProducts", fields: [sellerId], references: [id])
+  isActive          Boolean       @default(true)
+  isApproved        Boolean       @default(false)
+  allowGroupBuy     Boolean       @default(true)
+  allowLiveCommerce Boolean       @default(false)
+  badges            String?
+
+  shippingFee           Decimal  @default(0) @db.Decimal(12, 2)
+  freeShipping          Boolean  @default(false)
+  freeShippingThreshold Decimal? @db.Decimal(12, 2)
+  remoteAreaFee         Decimal  @default(0) @db.Decimal(12, 2)
+
+  totalStock   Int      @default(0)
+  soldCount    Int      @default(0)
+  thumbnail    String?
+  // 다차원 옵션 그룹 메타데이터 (JSON): [{groupName: string, options: string[]}]
+  // variants는 ProductVariant 테이블에 flat하게 저장 (예: "빨강/S")
+  optionGroups String?  @db.Text
+  // 외부 플랫폼 최저가 참고용 (셀러 상품 신청 화면에 표시)
+  coupangLowestPrice Decimal? @db.Decimal(12, 2)
+  naverLowestPrice   Decimal? @db.Decimal(12, 2)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  variants           ProductVariant[]
+  images             ProductImage[]
+  sellerProducts     SellerShopProduct[]
+  campaigns          GroupBuyCampaign[]
+  reviews            Review[]
+  wishlists          Wishlist[]
+  cartItems          CartItem[]
+  shoppingTags       ShoppingTag[]
+  liveStreamProducts LiveStreamProduct[]
+  chats              ProductChat[]
+  packageItems       PackageItem[]
+
+  @@map("products")
+}
+
+// ─────────────────────────────────────────────
+// 위시리스트 (찜 목록)
+// ─────────────────────────────────────────────
+
+model Wishlist {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+  @@map("wishlists")
+}
+
+model ProductVariant {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name      String
+  sku       String?
+  price     Decimal  @db.Decimal(12, 2)
+  stock     Int      @default(0)
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  orderItems OrderItem[]
+  cartItems  CartItem[]
+
+  @@map("product_variants")
+}
+
+model ProductImage {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String
+  alt       String?
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@map("product_images")
+}
+
+// ─────────────────────────────────────────────
+// 셀러 샵 상품 (셀러가 자기 샵에 추가)
+// ─────────────────────────────────────────────
+
+model SellerShopProduct {
+  id           String        @id @default(cuid())
+  sellerId     String
+  seller       SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  displayOrder Int           @default(0)
+  shopNumber   Int?
+  sellerNote   String?       @db.Text
+  isActive     Boolean       @default(true)
+  isApproved   Boolean       @default(false)
+  // 셀러가 신청 시 직접 입력한 판매가 (공급가 제공 상품)
+  sellerPrice  Decimal?      @db.Decimal(10, 2)
+  // 반려/거절 사유 (값이 있으면 반려된 신청 → 셀러에게 사유 표시)
+  rejectionReason String?    @db.VarChar(500)
+  // 승인 주체: SUPER_ADMIN | MIDDLE_ADMIN | BRAND_ADMIN
+  approverType String?
+  // 승인 주체 식별자: MIDDLE_ADMIN→MiddleAdminProfile.id, BRAND_ADMIN→BrandProfile.id, SUPER_ADMIN→null
+  approverId   String?
+  createdAt    DateTime      @default(now())
+
+  @@unique([sellerId, productId])
+  @@map("seller_shop_products")
+}
+
+// ─────────────────────────────────────────────
+// 공동구매 캠페인
+// ─────────────────────────────────────────────
+
+enum CampaignStatus {
+  SCHEDULED
+  ACTIVE
+  SUCCESS
+  FAILED
+  SOLDOUT
+  CANCELLED
+  SETTLED
+  REFUNDING
+  REFUNDED
+}
+
+model GroupBuyCampaign {
+  id                String         @id @default(cuid())
+  title             String
+  sellerId          String
+  seller            SellerProfile  @relation(fields: [sellerId], references: [id])
+  productId         String
+  product           Product        @relation(fields: [productId], references: [id])
+  status            CampaignStatus @default(SCHEDULED)
+  campaignPrice     Decimal        @db.Decimal(12, 2)
+  originalPrice     Decimal        @db.Decimal(12, 2)
+  startDate         DateTime
+  endDate           DateTime
+  goalQuantity      Int?
+  minOrderQuantity  Int            @default(1)
+  maxOrderQuantity  Int?
+  limitPerPerson    Int            @default(10)
+  currentQuantity   Int            @default(0)
+  participantCount  Int            @default(0)
+  bannerImage       String?
+  description       String?        @db.Text
+  estimatedDelivery DateTime?
+  commissionRate    Decimal        @default(10) @db.Decimal(5, 2)
+  totalRevenue      Decimal        @default(0) @db.Decimal(12, 2)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  orders      Order[]
+  settlements Settlement[]
+
+  @@map("group_buy_campaigns")
+}
+
+// ─────────────────────────────────────────────
+// 주문
+// ─────────────────────────────────────────────
+
+enum OrderStatus {
+  PENDING
+  PAID
+  CONFIRMED
+  SHIPPING
+  DELIVERED
+  CANCELLED
+  REFUND_REQUESTED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+model Order {
+  id              String            @id @default(cuid())
+  orderNumber     String            @unique
+  userId          String
+  user            User              @relation(fields: [userId], references: [id])
+  sellerId        String
+  seller          SellerProfile     @relation("SellerOrders", fields: [sellerId], references: [id])
+  campaignId      String?
+  campaign        GroupBuyCampaign? @relation(fields: [campaignId], references: [id])
+  status          OrderStatus       @default(PENDING)
+  paymentStatus   PaymentStatus     @default(PENDING)
+  totalAmount     Decimal           @db.Decimal(12, 2)
+  shippingFee     Decimal           @default(0) @db.Decimal(12, 2)
+  discountAmount  Decimal           @default(0) @db.Decimal(12, 2)
+  discountType    String?
+  // 장바구니 할인액(셀러 부담) — discountAmount(회사 부담 추천인/픽)와 분리해 정산에서 차감
+  cartDiscountAmount Decimal        @default(0) @db.Decimal(12, 2)
+  finalAmount     Decimal           @db.Decimal(12, 2)
+  shippingName    String?
+  shippingPhone   String?
+  shippingAddress String?
+  shippingMemo    String?
+  snsAccounts     String?           @db.Text
+  paymentMethod   String?
+  pgProvider      String?
+  pgTid           String?
+  pgAuthData      String?           @db.Text
+  paidAt          DateTime?
+  shippedAt       DateTime?
+  deliveredAt     DateTime?
+  cancelledAt     DateTime?
+  refundedAt      DateTime?
+  // 배송 상태 관리 (상품 등록자가 업데이트, 판매 셀러/최고관리자는 조회만)
+  // 기본값 없음 — 주문 생성 시점엔 null 이고, PG 결제 성공 콜백이 PAYMENT_COMPLETED 로 채운다.
+  // (기본값이 PAYMENT_COMPLETED 였던 탓에 미결제 주문이 마이페이지에 "결제 완료"로 표시되던 버그가 있었음)
+  deliveryStatus    String?   // PAYMENT_COMPLETED | PREPARING | SHIPPED | DELIVERING | DELIVERED | CANCELLED | CANCEL_REQUESTED | CANCEL_COMPLETED
+  deliveryTracking  String?   // 운송장 번호
+  deliveryCourier   String?   // 택배사명
+  deliveryUpdatedAt DateTime? // 배송 상태 마지막 업데이트 시각
+  deliveryUpdatedBy String?   // 업데이트한 사용자 email
+
+  // ── 결제취소 (셀러 요청 → 관리자 승인) ─────────────────────────────────
+  cancelRequestedAt        DateTime?
+  cancelRequestedBy        String?            // 요청한 셀러 userId
+  cancelReason             String?            @db.Text
+  cancelType               String?            // "SAME_DAY" | "POST_DAY"
+  cancelStatus             String?            // "REQUESTED" | "DEPOSIT_CONFIRMED" | "APPROVED" | "COMPLETED"
+  cancelAmount             Decimal?           @db.Decimal(12, 2)
+  cancelDepositConfirmedAt DateTime?
+  cancelApprovedAt         DateTime?
+  cancelFromSettlement     Boolean            @default(false) // 정산금 차감 여부
+
+  // 주문 시점 셀러 플랫폼 수수료율(%) 스냅샷.
+  // OrderItem 이 없는 주문(수기/소셜 주문서 등 상품 매핑 없이 결제된 건)은 아이템 단위
+  // 스냅샷을 저장할 곳이 없어, 요율을 바꾸면 과거 정산액이 소급 변동한다. 그 구멍을 막는다.
+  sellerFeeRateSnap        Decimal?           @db.Decimal(5, 2)
+
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  items                  OrderItem[]
+  referralCommissions    ReferralCommission[]
+  middleAdminCommissions MiddleAdminCommission[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id String @id @default(cuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  // productId 는 FK 가 아니다. itemType 에 따라 가리키는 테이블이 다르다.
+  //   PRODUCT → Product.id  (브랜드/관리자/셀러가 등록한 카탈로그 상품)
+  //   DIRECT  → DirectProduct.id (셀러가 "일반상품(빠른상품)"으로 직접 등록한 상품)
+  // 따라서 productId 로 Product 를 조회하는 코드는 반드시 itemType 을 먼저 확인할 것.
+  itemType    String          @default("PRODUCT")
+  productId   String
+  variantId   String?
+  variant     ProductVariant? @relation(fields: [variantId], references: [id])
+  productName String
+  variantName String?
+  price       Decimal         @db.Decimal(12, 2)
+  quantity    Int
+  totalPrice  Decimal         @db.Decimal(12, 2)
+  createdAt   DateTime        @default(now())
+
+  // ── 정산 스냅샷 (주문 시점 고정) ──────────────────────────────────
+  // 정산액은 요율·공급가·상품 소유자에 의존하는데 이 값들은 전부 가변이라,
+  // 스냅샷이 없으면 나중에 요율을 바꾸는 순간 과거 주문의 정산액이 소급 재계산된다.
+  // (2026-07-12 셀러 수수료율 7%→5% 변경으로 6월 정산액이 136,507원 이동한 사고)
+  // 아래 값이 있으면 settlement.ts 가 Product 를 다시 읽지 않고 이 값만으로 계산한다.
+  // 덕분에 상품이 하드 삭제돼도 정산액이 0원으로 사라지지 않는다.
+  // 전부 nullable — 스냅샷 도입 이전 주문은 null 이며, 그 경우에만 라이브 조회로 폴백한다.
+  supplyPriceSnap           Decimal? @db.Decimal(12, 2) // 그때의 공급가(단가)
+  priceModelSnap            String? // 그때의 priceModel (SUPPLY | COMMISSION | DIRECT=셀러 일반상품)
+  productCommissionRateSnap Decimal? @db.Decimal(5, 2) // COMMISSION 상품의 셀러 커미션율(%)
+  sellerFeeRateSnap         Decimal? @db.Decimal(5, 2) // 그때의 셀러 플랫폼 수수료율(%)
+  supplierFeeRateSnap       Decimal? @db.Decimal(5, 2) // 그때의 공급자 플랫폼 수수료율(%)
+  isSellerProductSnap       Boolean? // 판매 셀러가 직접 등록한 상품인지(Case 1 판정)
+  recipientRole             String? // 공급분 정산 수취인 역할: SELLER | MIDDLE_ADMIN | BRAND
+  recipientId               String? // 공급분 정산 수취인 ID
+
+  @@map("order_items")
+}
+
+// ─────────────────────────────────────────────
+// 장바구니
+// ─────────────────────────────────────────────
+
+model CartItem {
+  id         String          @id @default(cuid())
+  userId     String
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variantId  String?
+  variant    ProductVariant? @relation(fields: [variantId], references: [id])
+  sellerId   String
+  campaignId String?
+  quantity   Int             @default(1)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  @@unique([userId, productId, variantId, sellerId, campaignId])
+  @@map("cart_items")
+}
+
+// ─────────────────────────────────────────────
+// 배송지
+// ─────────────────────────────────────────────
+
+model Address {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  phone     String
+  zipCode   String?
+  address1  String
+  address2  String?
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@map("addresses")
+}
+
+// ─────────────────────────────────────────────
+// 리뷰
+// ─────────────────────────────────────────────
+
+model Review {
+  id                String    @id @default(cuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId         String
+  product           Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  rating            Int
+  content           String    @db.Text
+  images            String?   @db.Text
+  isVisible         Boolean   @default(true)
+  isHidden          Boolean   @default(false)
+  sellerComment     String?   @db.Text
+  sellerCommentedAt DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@map("reviews")
+}
+
+// ─────────────────────────────────────────────
+// 정산
+// ─────────────────────────────────────────────
+
+enum SettlementStatus {
+  PENDING
+  CALCULATED
+  APPROVED
+  PAID
+  REJECTED
+}
+
+model Settlement {
+  id               String            @id @default(cuid())
+  sellerId         String
+  seller           SellerProfile     @relation(fields: [sellerId], references: [id])
+  campaignId       String?
+  campaign         GroupBuyCampaign? @relation(fields: [campaignId], references: [id])
+  periodStart      DateTime
+  periodEnd        DateTime
+  totalSales       Decimal           @db.Decimal(12, 2)
+  commissionRate   Decimal           @db.Decimal(5, 2)
+  commissionAmount Decimal           @db.Decimal(12, 2)
+  settlementAmount Decimal           @db.Decimal(12, 2)
+  status           SettlementStatus  @default(PENDING)
+  paidAt           DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@map("settlements")
+}
+
+// ─────────────────────────────────────────────
+// 멘토 커미션 (셀러 추천인 시스템)
+// ─────────────────────────────────────────────
+
+model MentorCommission {
+  id               String   @id @default(cuid())
+  mentorId         String                         // 추천인(멘토) 셀러의 userId
+  menteeId         String                         // 멘티 셀러의 userId
+  orderId          String?                        // 연관 주문 ID
+  baseAmount       Decimal  @db.Decimal(12, 2)   // 멘티의 해당 주문 결제금액
+  commissionRate   Decimal  @db.Decimal(5, 4)    // 커미션율 (예: 0.0100 = 1%)
+  commissionAmount Decimal  @db.Decimal(12, 2)   // 실제 커미션 금액
+  status           CommissionStatus @default(PENDING)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  mentor  User @relation("MentorCommissions", fields: [mentorId], references: [id])
+  mentee  User @relation("MenteeCommissions", fields: [menteeId], references: [id])
+
+  @@index([mentorId])
+  @@index([menteeId])
+  @@map("mentor_commissions")
+}
+
+// ─────────────────────────────────────────────
+// 출금 요청 (셀러가 정산 가능 금액에 대해 출금 신청)
+// ─────────────────────────────────────────────
+
+enum PayoutStatus {
+  REQUESTED
+  APPROVED
+  PAID
+  REJECTED
+}
+
+model PayoutRequest {
+  id            String        @id @default(cuid())
+  sellerId      String
+  seller        SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  amount        Decimal       @db.Decimal(12, 2)
+  netAmount     Decimal       @db.Decimal(12, 2)
+  orderCount    Int           @default(0)
+  // 출금 수수료율(%) — 최고관리자 설정값(Setting: payoutFeeRate), 없으면 0
+  commissionRate       Decimal @default(0) @db.Decimal(5, 2)
+  // 수수료 차감액 = 출금신청금액 × 수수료율
+  commissionAmount     Decimal @default(0) @db.Decimal(12, 2)
+  // 원천징수액 = (출금신청금액 - 수수료차감액) × 0.033 (비사업자 셀러만, 사업자는 0)
+  withholdingTaxAmount Decimal @default(0) @db.Decimal(12, 2)
+  // 실제 입금액 = 출금신청금액 - 수수료차감액 - 원천징수액
+  actualPayoutAmount   Decimal @default(0) @db.Decimal(12, 2)
+  status        PayoutStatus  @default(REQUESTED)
+  isBusiness    Boolean       @default(false)
+  bizNumber     String?
+  companyName   String?
+  bankName      String?
+  accountNumber String?
+  accountHolder String?
+  note          String?       @db.Text
+  requestedAt   DateTime      @default(now())
+  processedAt   DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  orders PayoutRequestOrder[]
+
+  @@index([sellerId])
+  @@index([status])
+  @@map("payout_requests")
+}
+
+// 출금 신청 시점의 주문별 정산 스냅샷 (docs/SETTLEMENT_ISSUES.md #3)
+// - 어떤 주문의 정산분이 어느 출금에 얼마나 포함됐는지 고정 기록한다.
+// - 신청 금액을 정산일이 빠른 주문부터 FIFO로 배분(allocatedAmount)한다.
+// - 이후 수수료율/공급가가 바뀌어도 출금 당시의 근거가 남는다.
+model PayoutRequestOrder {
+  id               String        @id @default(cuid())
+  payoutRequestId  String
+  payoutRequest    PayoutRequest @relation(fields: [payoutRequestId], references: [id], onDelete: Cascade)
+  orderId          String        // Order.id (스냅샷 성격이라 FK 미설정)
+  orderNumber      String        // 조회 편의용 주문번호 스냅샷
+  settlementAmount Decimal       @db.Decimal(12, 2) // 신청 시점 이 주문의 정산액(세전)
+  allocatedAmount  Decimal       @db.Decimal(12, 2) // 이 출금이 커버하는 금액(부분 출금 배분)
+  createdAt        DateTime      @default(now())
+
+  @@unique([payoutRequestId, orderId])
+  @@index([orderId])
+  @@map("payout_request_orders")
+}
+
+// ─────────────────────────────────────────────
+// 쿠콘 입금이체PG 거래 로그 (최고관리자 송금)
+// ─────────────────────────────────────────────
+
+enum DepositTransferStatus {
+  REQUESTED // 요청 직후 (응답 대기)
+  SUCCESS // 이체 정상 완료
+  FAILED // 이체 실패
+  PROCESSING // 은행 처리중 (6170 STS=6)
+  UNKNOWN // 타임아웃/001/9980 — 반드시 결과조회(6170) 필요
+}
+
+model DepositTransfer {
+  id          String                @id @default(cuid())
+  trscSeqNo   String // 거래일련번호 (거래일별 고유 12자리)
+  reqDate     String // 거래요청일 YYYYMMDD
+  rcvBnkCd    String // 입금은행코드
+  rcvAcctNo   String // 입금계좌번호
+  rcvAcctNm   String? // 입금계좌성명 (예금주)
+  amount      Decimal               @db.Decimal(13, 0) // 입금금액(원)
+  wdrwAcctNm  String? // 의뢰인명 (상대 통장 인자)
+  status      DepositTransferStatus @default(REQUESTED)
+  respCd      String? // 처리결과코드
+  respMsg     String?               @db.Text
+  balAmt      String? // 거래후 출금계좌 잔액
+  memo        String?               @db.Text
+  createdById String? // 실행한 관리자 userId
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  @@unique([reqDate, trscSeqNo])
+  @@index([status])
+  @@index([createdAt])
+  @@map("deposit_transfers")
+}
+
+// ─────────────────────────────────────────────
+// 중간관리자 마진 적립 (주문별) & 정산
+// ─────────────────────────────────────────────
+
+model MiddleAdminCommission {
+  id            String             @id @default(cuid())
+  middleAdminId String
+  middleAdmin   MiddleAdminProfile @relation(fields: [middleAdminId], references: [id])
+  orderId       String
+  order         Order              @relation(fields: [orderId], references: [id])
+  source        String
+  brandId       String?
+  sellerId      String?
+  orderAmount   Decimal            @db.Decimal(12, 2)
+  marginAmount  Decimal            @db.Decimal(12, 2)
+  status        CommissionStatus   @default(PENDING)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@index([middleAdminId])
+  @@index([orderId])
+  @@map("middle_admin_commissions")
+}
+
+model MiddleAdminSettlement {
+  id               String             @id @default(cuid())
+  middleAdminId    String
+  middleAdmin      MiddleAdminProfile @relation(fields: [middleAdminId], references: [id])
+  periodStart      DateTime
+  periodEnd        DateTime
+  totalSales       Decimal            @db.Decimal(12, 2)
+  marginAmount     Decimal            @db.Decimal(12, 2)
+  settlementAmount Decimal            @db.Decimal(12, 2)
+  status           SettlementStatus   @default(PENDING)
+  paidAt           DateTime?
+  // 세금계산서
+  invoiceStatus      String    @default("NONE") // NONE | REQUESTED | ISSUED
+  invoiceRequestedAt DateTime?
+  invoiceIssuedAt    DateTime?
+  invoiceNumber      String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@index([middleAdminId])
+  @@map("middle_admin_settlements")
+}
+
+// ─────────────────────────────────────────────
+// 노드 정산 (관리자 → 노드)
+// ─────────────────────────────────────────────
+
+model NodeSettlement {
+  id          String           @id @default(cuid())
+  nodeUserId  String
+  nodeUser    User             @relation("NodeUserSettlements", fields: [nodeUserId], references: [id])
+  periodLabel String           // 정산 기간 표시 (예: "2025년 1월")
+  totalAmount Decimal          @db.Decimal(12, 2)
+  status      SettlementStatus @default(PENDING)
+  memo        String?          @db.Text
+  paidAt      DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([nodeUserId])
+  @@map("node_settlements")
+}
+
+// ─────────────────────────────────────────────
+// 중간관리자 직접 정산 (관리자 → 중간관리자)
+// ─────────────────────────────────────────────
+
+model MiddleManagerSettlement {
+  id            String             @id @default(cuid())
+  middleAdminId String
+  middleAdmin   MiddleAdminProfile @relation(fields: [middleAdminId], references: [id])
+  periodLabel   String             // 정산 기간 표시 (예: "2025년 1월")
+  totalAmount   Decimal            @db.Decimal(12, 2)
+  status        SettlementStatus   @default(PENDING)
+  memo          String?            @db.Text
+  paidAt        DateTime?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@index([middleAdminId])
+  @@map("middle_manager_settlements")
+}
+
+// ─────────────────────────────────────────────
+// 배너 (CMS)
+// ─────────────────────────────────────────────
+
+model Banner {
+  id        String    @id @default(cuid())
+  title     String
+  subtitle  String?
+  imageUrl  String
+  linkUrl   String?
+  position  String    @default("hero")
+  sortOrder Int       @default(0)
+  isActive  Boolean   @default(true)
+  startDate DateTime?
+  endDate   DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@map("banners")
+}
+
+// ─────────────────────────────────────────────
+// 콘텐츠/룩북
+// ─────────────────────────────────────────────
+
+model ContentPost {
+  id          String        @id @default(cuid())
+  sellerId    String
+  seller      SellerProfile @relation(fields: [sellerId], references: [id])
+  title       String
+  content     String?       @db.Text
+  images      String?       @db.Text
+  category    String?
+  hashtags    String?       @db.Text
+  productTags String?       @db.Text
+  isPublished Boolean       @default(false)
+  isApproved  Boolean       @default(false)
+  viewCount   Int           @default(0)
+  likeCount   Int           @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  shoppingTags ShoppingTag[]
+  likes        ContentLike[]
+  comments     ContentComment[]
+
+  @@map("content_posts")
+}
+
+// ─────────────────────────────────────────────
+// 쇼핑 태그 (이미지 위 상품 태그)
+// ─────────────────────────────────────────────
+
+model ShoppingTag {
+  id         String      @id @default(cuid())
+  contentId  String
+  content    ContentPost @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  imageIndex Int         @default(0)
+  posX       Float
+  posY       Float
+  label      String?
+  createdAt  DateTime    @default(now())
+
+  @@map("shopping_tags")
+}
+
+// ─────────────────────────────────────────────
+// 콘텐츠 좋아요
+// ─────────────────────────────────────────────
+
+model ContentLike {
+  id        String      @id @default(cuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contentId String
+  content   ContentPost @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  createdAt DateTime    @default(now())
+
+  @@unique([userId, contentId])
+  @@map("content_likes")
+}
+
+// ─────────────────────────────────────────────
+// 콘텐츠 댓글
+// ─────────────────────────────────────────────
+
+model ContentComment {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contentId String
+  content   ContentPost      @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  text      String           @db.Text
+  parentId  String?
+  parent    ContentComment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   ContentComment[] @relation("CommentReplies")
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@index([contentId])
+  @@map("content_comments")
+}
+
+// ─────────────────────────────────────────────
+// 알림
+// ─────────────────────────────────────────────
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      String
+  isRead    Boolean  @default(false)
+  linkUrl   String?
+  createdAt DateTime @default(now())
+
+  @@map("notifications")
+}
+
+// ─────────────────────────────────────────────
+// 라이브 커머스
+// ─────────────────────────────────────────────
+
+enum LiveStreamStatus {
+  SCHEDULED
+  LIVE
+  ENDED
+  CANCELLED
+}
+
+model LiveStream {
+  id              String           @id @default(cuid())
+  sellerId        String
+  seller          SellerProfile    @relation(fields: [sellerId], references: [id])
+  title           String
+  description     String?          @db.Text
+  thumbnailImage  String?
+  status          LiveStreamStatus @default(SCHEDULED)
+  scheduledAt     DateTime?
+  startedAt       DateTime?
+  endedAt         DateTime?
+  vodUrl          String?
+  rtmpUrl         String?
+  streamKey       String?
+  platform        String?
+  externalUrl     String?          @db.Text
+  shareCode       String           @unique
+  viewerCount     Int              @default(0)
+  peakViewerCount Int              @default(0)
+  likeCount       Int              @default(0)
+  isVodSaved      Boolean          @default(false)
+  kakaoNotified   Boolean          @default(false)
+  showPastInShop  Boolean          @default(false)
+  // 채널 페이지: 방송 종료(OFF) 상태 설정
+  offThumbnailUrl String?          // 방송 종료 후 표시 썸네일
+  offLinkUrl      String?          // 종료 후 링크 URL
+  offLinkText     String?          @default("자세히 보기") // 링크 버튼 텍스트
+  // YouTube 실시간 채팅 수집 커서 (셀러 API 키로 폴링해 앱 채팅에 병합)
+  ytLiveChatId    String?          // videos.list 로 조회한 activeLiveChatId 캐시
+  ytNextPageToken String?          @db.Text // liveChat/messages 다음 페이지 커서
+  ytSyncedAt      DateTime?        // 마지막 YouTube 채팅 폴링 시각 (throttle 용)
+  ytChatForward   Boolean          @default(true) // 사이트 채팅 → YouTube 라이브 채팅 전달 (셀러 OAuth 계정 명의로 게시)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  products     LiveStreamProduct[]
+  chatMessages LiveChatMessage[]
+  coupons      LiveCoupon[]
+
+  @@index([sellerId])
+  @@index([shareCode])
+  @@index([status])
+  @@map("live_streams")
+}
+
+model LiveStreamProduct {
+  id           String     @id @default(cuid())
+  liveStreamId String
+  liveStream   LiveStream @relation(fields: [liveStreamId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sortOrder    Int        @default(0)
+  isActive     Boolean    @default(true)
+  livePrice    Decimal?   @db.Decimal(12, 2)
+  createdAt    DateTime   @default(now())
+
+  @@unique([liveStreamId, productId])
+  @@map("live_stream_products")
+}
+
+model LiveChatMessage {
+  id           String     @id @default(cuid())
+  liveStreamId String
+  liveStream   LiveStream @relation(fields: [liveStreamId], references: [id], onDelete: Cascade)
+  userId       String?
+  nickname     String     @default("익명")
+  message      String     @db.Text
+  isManager    Boolean    @default(false)
+  isSystem     Boolean    @default(false)
+  isBot        Boolean    @default(false) // AI 챗봇이 발송한 메시지
+  isHidden     Boolean    @default(false) // 스팸/금지어 필터로 숨김 처리된 메시지
+  isYoutube    Boolean    @default(false) // YouTube 라이브 채팅에서 수집한 메시지 (YT 배지 표시)
+  ytMessageId  String?    @db.VarChar(191) // YouTube 메시지 ID (중복 수집 방지용)
+  createdAt    DateTime   @default(now())
+
+  @@unique([liveStreamId, ytMessageId])
+  @@index([liveStreamId])
+  @@map("live_chat_messages")
+}
+
+// 라이브 채널 공지사항 (셀러 단위)
+model LiveChannelNotice {
+  id        String        @id @default(cuid())
+  sellerId  String
+  seller    SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  title     String
+  content   String        @db.Text
+  isPinned  Boolean       @default(false)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([sellerId])
+  @@map("live_channel_notices")
+}
+
+// AI YouTube 채팅 봇 설정 (셀러당 1개)
+// keywords/bannedWords/faqs 는 String? @db.Text 에 JSON 직렬화 저장 (MySQL 배열 미지원)
+model ChatBotConfig {
+  id       String        @id @default(cuid())
+  sellerId String        @unique
+  seller   SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  enabled Boolean @default(false) // 봇 전체 ON/OFF
+
+  // 1. 자동 인사 (시청자 첫 채팅 감지 시 환영 메시지)
+  greetingEnabled Boolean @default(true)
+  greetingMessage String? @db.Text
+
+  // 2. 키워드 자동 응답 — JSON: [{ keyword, response }]
+  keywordEnabled Boolean @default(true)
+  keywords       String? @db.Text
+
+  // 3. 상품 정보 자동 안내 ("N번 상품", "가격", "재고" 질문 자동 응답)
+  productInfoEnabled Boolean @default(true)
+
+  // 4. 스팸/욕설 필터 — JSON: [금지어]
+  spamFilterEnabled Boolean @default(true)
+  bannedWords       String? @db.Text
+
+  // 5. FAQ 자동 응답 — JSON: [{ question, answer }]
+  faqEnabled Boolean @default(true)
+  faqs       String? @db.Text
+
+  // 6. 구매 유도 메시지 (분 단위 주기)
+  purchaseNudgeEnabled  Boolean @default(false)
+  purchaseNudgeMessage  String? @db.Text
+  purchaseNudgeInterval Int     @default(5)
+
+  // 7. 라이브 통계 공지 (분 단위 주기)
+  statsEnabled  Boolean @default(false)
+  statsInterval Int     @default(10)
+
+  // 8. 쿠폰 코드 자동 공지 (분 단위 주기)
+  couponEnabled  Boolean @default(false)
+  couponInterval Int     @default(10)
+
+  // 9. 봇 메시지 YouTube 채팅 동시 전송 (셀러 YouTube OAuth 연결 시에만 동작)
+  youtubeSendEnabled Boolean @default(false)
+
+  // 셀러 개인 YouTube Data API v3 키 (라이브 방송 YouTube 채팅 읽기용, 미설정 시 서버 공용 키 사용)
+  youtubeApiKey String? @db.Text
+
+  // 봇 엔진 런타임 커서 (라이브별 처리 위치 — 라이브가 바뀌면 리셋)
+  activeLiveId    String?
+  lastProcessedAt DateTime?
+  lastNudgeAt     DateTime?
+  lastStatsAt     DateTime?
+  lastCouponAt    DateTime?
+  ytLiveChatId    String?
+  ytPageToken     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("chat_bot_configs")
+}
+
+model LiveCoupon {
+  id             String     @id @default(cuid())
+  liveStreamId   String
+  liveStream     LiveStream @relation(fields: [liveStreamId], references: [id], onDelete: Cascade)
+  code           String     @unique
+  discountType   String     // "PERCENT" | "AMOUNT"
+  discountValue  Decimal    @db.Decimal(10, 2)
+  validDays      Int        @default(7)
+  maxCount       Int?
+  minOrderAmount Decimal?   @db.Decimal(12, 2)
+  issuedCount    Int        @default(0)
+  createdAt      DateTime   @default(now())
+
+  claims         UserCoupon[]
+
+  @@index([liveStreamId])
+  @@index([code])
+  @@map("live_coupons")
+}
+
+model UserCoupon {
+  id           String     @id @default(cuid())
+  liveCouponId String
+  liveCoupon   LiveCoupon @relation(fields: [liveCouponId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  claimedAt    DateTime   @default(now())
+  usedAt       DateTime?
+
+  @@unique([liveCouponId, userId])
+  @@index([userId])
+  @@map("user_coupons")
+}
+
+// ─────────────────────────────────────────────
+// 상품별 채팅 (공급자-셀러 간 대화)
+// ─────────────────────────────────────────────
+
+model ProductChat {
+  id         String   @id @default(cuid())
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  senderId   String
+  senderRole String
+  senderName String
+  message    String   @db.Text
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([productId])
+  @@index([senderId])
+  @@map("product_chats")
+}
+
+// ─────────────────────────────────────────────
+// 결제 로그 (PG 통합)
+// ─────────────────────────────────────────────
+
+model PaymentLog {
+  id        String   @id @default(cuid())
+  orderId   String?
+  provider  String
+  stage     String
+  status    String
+  message   String   @db.Text
+  payload   String?  @db.LongText
+  pgTid     String?
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
+  @@index([provider, stage])
+  @@index([createdAt])
+  @@map("payment_logs")
+}
+
+// ─────────────────────────────────────────────
+// NextAuth OAuth 표준 모델
+// ─────────────────────────────────────────────
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ─────────────────────────────────────────────
+// 전역 설정
+// ─────────────────────────────────────────────
+
+model Setting {
+  key       String   @id
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}
+
+// 시스템 전역 스위치 (노드 시스템 ON/OFF 등, 단일 레코드 id=1)
+model SystemConfig {
+  id            Int      @id @default(1)
+  nodeEnabled   Boolean  @default(true)
+  sellerOnlyFee Boolean  @default(false) // true: 플랫폼 수수료 전액 셀러 부담 (공급자 수수료 없음)
+  updatedAt     DateTime @updatedAt
+
+  @@map("system_config")
+}
+
+// 역할별 플랫폼 수수료율 설정 (최고관리자 전용, 단일 레코드)
+model PlatformFeeSettings {
+  id                 Int      @id @default(autoincrement())
+  sellerFeeRate      Decimal  @default(5.00) @db.Decimal(5, 2)
+  middleAdminFeeRate Decimal  @default(5.00) @db.Decimal(5, 2)
+  brandFeeRate       Decimal  @default(5.00) @db.Decimal(5, 2)
+  nodeFeeRate              Decimal  @default(5.00) @db.Decimal(5, 2)
+  mentorCommissionRate     Decimal  @default(1.00) @db.Decimal(5, 2) // 멘토 셀러 추천인 커미션율 (기본 1%)
+  updatedAt                DateTime @updatedAt
+
+  @@map("platform_fee_settings")
+}
+
+// ─────────────────────────────────────────────
+// 게임 관리 (OBS 오버레이용)
+// ──────────
+model Game {
+  id        String        @id @default(cuid())
+  sellerId  String
+  seller    SellerProfile @relation(fields: [sellerId], references: [id])
+  // "ROULETTE" | "LADDER" | "DRAW" | "KEYWORD" | "NUMBER_GUESS"
+  // | "QUIZ" | "VOTE" | "GOAL_GAUGE" | "BOX_OPEN" | "SEQUENTIAL"
+  type      String
+  title     String
+  items     String        @db.Text // JSON array of items
+  config    String?       @db.Text // JSON: 타입별 설정 (정답/선택지/보상/확률 등)
+  status    String        @default("IDLE") // IDLE, RUNNING, FINISHED
+  result    String?       @db.Text // JSON result
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  participants GameParticipant[]
+  gameCoupons  GameCoupon[]
+
+  @@index([sellerId])
+  @@map("games")
+}
+
+// 게임 쿠폰 (셀러가 게임에 연결한 쿠폰 정의) — 당첨자에게 발급
+model GameCoupon {
+  id             String   @id @default(cuid())
+  gameId         String
+  game           Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  code           String? // null 이면 발급 시 자동 생성
+  discountType   String // "PERCENT" | "AMOUNT" | "PURCHASE"
+  discountValue  Int // PERCENT: 할인율(%), AMOUNT: 할인액(원), PURCHASE: 구매 고정가(원)
+  minOrderAmount Int      @default(0)
+  maxIssueCount  Int? // null = 무제한
+  validDays      Int      @default(7) // 게임 종료 후 N일 유효
+  productId      String? // PURCHASE 타입에서만 사용 — 특정 상품 ID
+  createdAt      DateTime @default(now())
+
+  issuedCoupons UserGameCoupon[]
+
+  @@index([gameId])
+  @@map("game_coupons")
+}
+
+// 발급된 게임 쿠폰 (당첨자 개인 소유) — 특정 셀러 샵에서만 사용 가능
+model UserGameCoupon {
+  id           String     @id @default(cuid())
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gameCouponId String
+  gameCoupon   GameCoupon @relation(fields: [gameCouponId], references: [id], onDelete: Cascade)
+  gameId       String // 어느 게임에서 받았는지
+  sellerId     String // 어느 셀러 샵에서만 사용 가능
+  code         String // 실제 사용 코드 (자동 생성, 유니크)
+  usedAt       DateTime? // null 이면 미사용
+  expiresAt    DateTime // 만료일
+  createdAt    DateTime   @default(now())
+
+  @@unique([userId, gameCouponId]) // 같은 게임 쿠폰은 1인 1회
+  @@unique([code])
+  @@index([userId])
+  @@index([sellerId])
+  @@map("user_game_coupons")
+}
+
+// 게임 참여자 (익명/로그인 모두 가능, QR·오버레이 참여)
+model GameParticipant {
+  id        String   @id @default(cuid())
+  gameId    String
+  game      Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  name      String // 참여자 표시명
+  entry     String? // 입력값 (숫자, 키워드 등)
+  createdAt DateTime @default(now())
+
+  @@index([gameId])
+  @@map("game_participants")
+}
+
+// ─────────────────────────────────────────────
+// Alimtalk (Kakao Business Message)
+// ─────────────────────────────────────────────
+
+model AlimtalkAccount {
+  id         String        @id @default(cuid())
+  sellerId   String        @unique
+  seller     SellerProfile @relation(fields: [sellerId], references: [id])
+  apiKey     String?       // Alimtalk service API key
+  senderKey  String?       // Kakao channel sender profile key
+  balance    Int           @default(0) // remaining credits (units)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  charges    AlimtalkCharge[]
+  logs       AlimtalkLog[]
+
+  @@map("alimtalk_accounts")
+}
+
+model AlimtalkCharge {
+  id          String          @id @default(cuid())
+  accountId   String
+  account     AlimtalkAccount @relation(fields: [accountId], references: [id])
+  amount      Int             // charge amount in KRW
+  vat         Int             // VAT in KRW
+  totalAmount Int             // actual payment amount in KRW
+  credits     Int             // number of credits charged
+  payMethod   String          // "card" | "easy_pay" | "bank_transfer"
+  payStatus   String          @default("PENDING") // PENDING, PAID, FAILED
+  pgTid       String?         // PG transaction ID
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@map("alimtalk_charges")
+}
+
+model AlimtalkLog {
+  id             String          @id @default(cuid())
+  accountId      String
+  account        AlimtalkAccount @relation(fields: [accountId], references: [id])
+  templateCode   String          // template code
+  recipientCount Int             // number of recipients
+  costPerMsg     Int             @default(15) // 15 KRW per message
+  totalCost      Int             // total deducted amount
+  status         String          @default("SENT") // SENT | FAILED
+  createdAt      DateTime        @default(now())
+
+  @@map("alimtalk_logs")
+}
+
+// 알림톡 용도(purpose)별 사용할 알리고 템플릿 매핑 — 관리자 알림톡 화면에서 설정.
+// 발송 엔진(lib/alimtalkEngine.ts)이 발송 시점에 알리고에서 템플릿 원문을 조회해
+// 변수만 치환하므로, 여기에는 어떤 템플릿을 쓸지(tplCode)와 on/off만 저장한다.
+model AlimtalkTemplateSetting {
+  id        String   @id @default(cuid())
+  purpose   String   @unique // LIVE_START | ORDER_PLACED | SHIPPING_START | SIGNUP_WELCOME
+  tplCode   String
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("alimtalk_template_settings")
+}
+
+// 알리고 실발송 기록 — 알림톡/SMS가 실제로 알리고에 접수될 때마다 1건 기록.
+// 플랫폼 공용 계정으로 발송하므로 셀러 귀속은 sellerId로 남긴다 (시스템 발송은 null).
+model AligoSendLog {
+  id             String         @id @default(cuid())
+  sellerId       String?        // 발송을 유발한 셀러 (비밀번호 문자 등 시스템 발송은 null)
+  seller         SellerProfile? @relation(fields: [sellerId], references: [id], onDelete: SetNull)
+  kind           String         // "ALIMTALK" | "SMS"
+  purpose        String         // "LIVE_START" | "PASSWORD_RESET" 등 발송 사유 코드
+  templateCode   String?        // 알림톡 템플릿 코드 (SMS는 null)
+  recipientCount Int            // 발송 시도 수신자 수
+  acceptedCount  Int            // 알리고 접수 성공 수 (실제 전달 성공과는 다름)
+  failCount      Int            @default(0)
+  cost           Decimal?       @db.Decimal(10, 2) // 알리고 차감 비용(원), 응답에 없으면 null
+  aligoMids      String?        @db.Text // 알리고 mid JSON 배열 — 전달 결과 사후 대조용
+  errorMessage   String?        @db.Text
+  liveStreamId   String?        // 라이브 방송 알림이면 해당 라이브 id
+  createdAt      DateTime       @default(now())
+
+  @@index([sellerId])
+  @@index([createdAt])
+  @@map("aligo_send_logs")
+}
+
+model FooterContent {
+  id     String   @id @default(cuid())
+  slug      String   @unique
+  title     String
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("footer_contents")
+}
+
+// ─────────────────────────────────────────────
+// 소셜(카카오) 주문
+// ─────────────────────────────────────────────
+
+model SocialOrder {
+  id            String    @id @default(cuid())
+  productId     String
+  sellerId      String
+  name          String
+  address       String
+  phone         String
+  depositorName String?
+  snsAccounts   String?   @db.Text
+  snsPlatform   String?
+  snsHandle     String?
+  snsNickname   String?
+  quantity      Int?
+  status        String?
+  createdAt     DateTime? @default(now())
+  updatedAt     DateTime? @updatedAt
+
+  @@map("social_orders")
+}
+
+// -------------------------------------------------
+// Manual Settlement (admin direct input)
+// -------------------------------------------------
+
+model ManualSettlement {
+  id            String   @id @default(cuid())
+  recipientType String
+  recipientId   String
+  amount        Int
+  memo          String?  @db.Text
+  status        String   @default("PAID")
+  paidAt        DateTime @default(now())
+  adminId       String
+  admin         User     @relation("AdminManualSettlements", fields: [adminId], references: [id])
+  createdAt     DateTime @default(now())
+
+  @@index([recipientId])
+  @@index([recipientType])
+  @@index([adminId])
+  @@map("manual_settlements")
+}
+
+// ─────────────────────────────────────────────
+// 패키지 상품 시스템
+// ─────────────────────────────────────────────
+
+// 패키지 상품 (여러 브랜드 상품을 묶어 하나의 상품으로 판매)
+model PackageProduct {
+  id           String   @id @default(cuid())
+  name         String
+  description  String?  @db.Text
+  imageUrl     String?
+  packagePrice Decimal  @db.Decimal(10, 2) // 패키지 판매가 (등록자가 직접 설정)
+  stock        Int      @default(0)
+  status       String   @default("PENDING") // PENDING | APPROVED | REJECTED
+  rejectReason String?  @db.Text
+
+  // 중간관리자 마진 (하위 브랜드 패키지에 중간관리자가 추가하는 마진)
+  middleAdminMargin Decimal? @db.Decimal(10, 2)
+
+  creatorId   String // 패키지 등록자 User.id
+  creatorRole String // SUPER_ADMIN | BRAND_ADMIN | SELLER | MIDDLE_ADMIN
+
+  creator            User                 @relation("PackageCreator", fields: [creatorId], references: [id])
+  items              PackageItem[]
+  packageOrderItems  PackageOrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([creatorId])
+  @@index([status])
+  @@map("package_products")
+}
+
+// 패키지 구성 상품 (패키지에 포함된 개별 상품)
+model PackageItem {
+  id        String  @id @default(cuid())
+  packageId String
+  productId String
+  unitPrice Decimal @db.Decimal(10, 2) // 등록 시점 개별 상품 단가 (발주서용)
+  quantity  Int     @default(1)
+
+  package PackageProduct @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  product Product        @relation(fields: [productId], references: [id])
+
+  @@index([packageId])
+  @@index([productId])
+  @@map("package_items")
+}
+
+// 패키지 주문 아이템 (패키지 상품 구매 1건)
+model PackageOrderItem {
+  id           String  @id @default(cuid())
+  orderId      String  // 연결된 원 주문 ID (Order.id) — 패키지 결제를 기존 주문에 연결
+  packageId    String
+  quantity     Int
+  packagePrice Decimal @db.Decimal(10, 2) // 구매 시점 패키지 판매가
+
+  // 구매자 배송 정보 (일반 Order 없이 직접 구매 시 저장)
+  buyerName    String?
+  buyerPhone   String?
+  buyerAddress String? @db.Text
+  buyerMemo    String?
+  paymentMethod String? // 결제수단
+  paidAt       DateTime? // 결제 완료 시각
+  status       String  @default("PENDING") // PENDING | PAID | CANCELLED
+
+  package        PackageProduct         @relation(fields: [packageId], references: [id])
+  purchaseOrders PackagePurchaseOrder[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([packageId])
+  @@index([orderId])
+  @@map("package_order_items")
+}
+
+// 패키지 발주서 (패키지 내 브랜드별 + 등록자)
+model PackagePurchaseOrder {
+  id                 String  @id @default(cuid())
+  packageOrderItemId String
+  recipientId        String  // 발주서 수신자 User.id
+  recipientType      String  // BRAND | CREATOR
+  productId          String? // 해당 개별 상품 (BRAND 타입만)
+  productName        String? // 상품명 (snapshot)
+  amount             Decimal @db.Decimal(10, 2) // 발주 금액
+  status             String  @default("PENDING") // PENDING | CONFIRMED | SHIPPED | COMPLETED
+
+  packageOrderItem PackageOrderItem @relation(fields: [packageOrderItemId], references: [id], onDelete: Cascade)
+  recipient        User             @relation("PackagePurchaseOrderRecipient", fields: [recipientId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([packageOrderItemId])
+  @@index([recipientId])
+  @@map("package_purchase_orders")
+}

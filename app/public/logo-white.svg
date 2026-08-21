@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 244 52" role="img" aria-labelledby="title">
+  <title id="title">바닐라폼</title>
+  <rect x="2" y="2" width="48" height="48" rx="15" fill="#FFF8E8"/>
+  <g transform="translate(26 26)" fill="#1F4D3B">
+    <ellipse cx="0" cy="-9" rx="5.5" ry="10"/>
+    <ellipse cx="8.6" cy="-2.8" rx="5.5" ry="10" transform="rotate(72 8.6 -2.8)"/>
+    <ellipse cx="5.3" cy="7.3" rx="5.5" ry="10" transform="rotate(144 5.3 7.3)"/>
+    <ellipse cx="-5.3" cy="7.3" rx="5.5" ry="10" transform="rotate(216 -5.3 7.3)"/>
+    <ellipse cx="-8.6" cy="-2.8" rx="5.5" ry="10" transform="rotate(288 -8.6 -2.8)"/>
+    <circle r="5" fill="#E7B65D"/>
+  </g>
+  <text x="64" y="35" fill="#FFFFFF" font-family="Pretendard, 'Noto Sans KR', sans-serif" font-size="27" font-weight="800" letter-spacing="-1.2">바닐라폼</text>
+  <text x="181" y="34" fill="#EADCBF" font-family="Arial, sans-serif" font-size="10" font-weight="700" letter-spacing="1.4">VANILLAFORM</text>
+</svg>

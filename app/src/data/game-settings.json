@@ -1,0 +1,14 @@
+{
+  "gameTypes": {
+    "ROULETTE": { "sellerVisible": true, "overlayStyle": "card" },
+    "LADDER": { "sellerVisible": true, "overlayStyle": "card" },
+    "DRAW": { "sellerVisible": true, "overlayStyle": "card" },
+    "KEYWORD": { "sellerVisible": true, "overlayStyle": "card" },
+    "NUMBER_GUESS": { "sellerVisible": true, "overlayStyle": "card" },
+    "QUIZ": { "sellerVisible": true, "overlayStyle": "card" },
+    "VOTE": { "sellerVisible": true, "overlayStyle": "card" },
+    "GOAL_GAUGE": { "sellerVisible": true, "overlayStyle": "card" },
+    "BOX_OPEN": { "sellerVisible": true, "overlayStyle": "card" },
+    "SEQUENTIAL": { "sellerVisible": true, "overlayStyle": "card" }
+  }
+}

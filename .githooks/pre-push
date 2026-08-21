@@ -1,0 +1,25 @@
+#!/usr/bin/env sh
+set -eu
+
+remote_url="$2"
+expected_url="https://github.com/nan29077/vanillaform.git"
+
+if [ "$remote_url" != "$expected_url" ]; then
+  echo "[바닐라폼 안전 차단] 허용되지 않은 원격 저장소: $remote_url" >&2
+  exit 1
+fi
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  if [ "$local_ref" != "refs/heads/main" ] || [ "$remote_ref" != "refs/heads/main" ]; then
+    echo "[바닐라폼 안전 차단] main 브랜치 외 push는 허용되지 않습니다." >&2
+    exit 1
+  fi
+
+  if git show-ref --verify --quiet refs/heads/source-snapshot \
+    && git merge-base --is-ancestor refs/heads/source-snapshot "$local_sha"; then
+    echo "[바닐라폼 안전 차단] 이전 서비스 Git 이력이 포함된 push를 거부했습니다." >&2
+    exit 1
+  fi
+done
+
+exit 0

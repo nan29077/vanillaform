@@ -1,0 +1,1193 @@
+generator client {
+  provider      = "prisma-client-js"
+  output        = "../src/generated/prisma"
+  binaryTargets = ["native", "windows"]
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("VANILLAFORM_DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// 사용자 & 역할
+// ─────────────────────────────────────────────
+
+enum Role {
+  SUPER_ADMIN
+  MIDDLE_ADMIN
+  BRAND_ADMIN
+  SELLER
+  BUYER
+}
+
+// 중간관리자 마진 산정 방식
+enum MarginMethod {
+  PERCENTAGE // 퍼센테이지: marginRate(%) x 기준가(공급가 or 판매가)
+  SUPPLY_BASE // 공급가 베이스(직접입력): 상품마다 공급가/마진/판매가를 직접 입력
+}
+
+// 퍼센테이지 방식일 때 기준이 되는 가격
+enum MarginBase {
+  SUPPLY // 공급가 기준
+  SALE // 판매가 기준
+}
+
+// 상품 제공 방식
+enum PriceModel {
+  SUPPLY // 공급가로 제공: 브랜드는 공급가만 입력, 셀러가 판매가 직접 결정
+  COMMISSION // 수수료로 제공: 브랜드가 판매가·수수료 지정, 셀러는 고정 판매가로만 판매
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String
+  password      String?
+  role          Role      @default(BUYER)
+  avatar        String?
+  image         String?
+  gender        String?
+  phone         String?
+  isActive      Boolean   @default(true)
+  managedByMiddleAdminId String?
+  managedByMiddleAdmin   MiddleAdminProfile? @relation("MiddleAdminManagedUsers", fields: [managedByMiddleAdminId], references: [id])
+  emailVerified DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  buyerProfile       BuyerProfile?
+  sellerProfile      SellerProfile?
+  brandProfile       BrandProfile?
+  middleAdminProfile MiddleAdminProfile?
+
+  accounts Account[]
+  sessions Session[]
+
+  orders          Order[]
+  reviews         Review[]
+  cartItems       CartItem[]
+  addresses       Address[]
+  notifications   Notification[]
+  wishlists       Wishlist[]
+  couponClaims    UserCoupon[]
+  contentLikes    ContentLike[]
+  contentComments ContentComment[]
+
+  @@map("users")
+}
+
+// ─────────────────────────────────────────────
+// 중간관리자 프로필 (브랜드.셀러 모집/관리)
+// ─────────────────────────────────────────────
+
+model MiddleAdminProfile {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  contactPhone String?
+  isActive     Boolean  @default(true)
+  isApproved   Boolean  @default(true)
+  commissionRate Decimal @default(5) @db.Decimal(5, 2)
+
+  // 사업자 정보 (정산용)
+  bizNumber     String?
+  companyName   String?
+  bankName      String?
+  accountNumber String?
+  accountHolder String?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  brands       BrandProfile[]
+  sellers      SellerProfile[]
+  commissions  MiddleAdminCommission[]
+  settlements  MiddleAdminSettlement[]
+  managedUsers User[]                  @relation("MiddleAdminManagedUsers")
+  products     Product[]               @relation("MiddleAdminProducts")
+
+  @@map("middle_admin_profiles")
+}
+
+// ─────────────────────────────────────────────
+// 구매회원 프로필 (셀러 귀속)
+// ─────────────────────────────────────────────
+
+model BuyerProfile {
+  id                 String         @id @default(cuid())
+  userId             String         @unique
+  user               User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  primarySellerId    String?
+  primarySeller      SellerProfile? @relation("PrimarySellerFans", fields: [primarySellerId], references: [id])
+  referralCode       String?
+  referredBySellerId String?
+  referredBySeller   SellerProfile? @relation("ReferredBuyers", fields: [referredBySellerId], references: [id])
+  liveAlimtalkOptIn  Boolean        @default(true)
+  notifyOrder        Boolean        @default(true)
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  follows              SellerFollower[]
+  channelVerifications ChannelVerification[]
+
+  @@map("buyer_profiles")
+}
+
+// ─────────────────────────────────────────────
+// 셀러 프로필 (인플루언서)
+// ─────────────────────────────────────────────
+
+model SellerProfile {
+  id              String  @id @default(cuid())
+  userId          String  @unique
+  user            User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  slug            String  @unique
+  shopName        String
+  shopDescription String? @db.Text
+  shopBanner      String?
+  shopLogo        String?
+  category        String?
+  mood            String?
+  shopThemeColor  String? @default("#377255")
+  instagramUrl    String?
+  youtubeUrl      String?
+  tiktokUrl       String?
+  facebookUrl     String?
+  twitterUrl      String?
+  isManualLive         Boolean @default(false)
+  livePlatform         String?
+  liveLink             String?
+  manualLiveProductIds String? @db.Text
+  isApproved           Boolean @default(false)
+  isRecommended   Boolean @default(false)
+  commissionRate  Decimal @default(5) @db.Decimal(5, 2)
+  totalFans       Int     @default(0)
+  totalSales      Decimal @default(0) @db.Decimal(12, 2)
+
+  middleAdminId         String?
+  middleAdmin           MiddleAdminProfile? @relation(fields: [middleAdminId], references: [id])
+  middleAdminMarginRate Decimal             @default(0) @db.Decimal(5, 2)
+
+  businessType           String? @default("non_business")
+  representativeName     String?
+  businessRegistrationNo String?
+  telecomSalesLicenseNo  String?
+  businessAddress        String?
+  businessCategory       String?
+
+  referralCode           String? @unique
+  referralCommissionRate Decimal @default(0) @db.Decimal(5, 2)
+  referralDiscountRate   Decimal @default(0) @db.Decimal(5, 2)
+  pickDiscountRate       Decimal @default(0) @db.Decimal(5, 2)
+  totalReferralEarnings  Decimal @default(0) @db.Decimal(12, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  fans                 BuyerProfile[]        @relation("PrimarySellerFans")
+  referredBuyers       BuyerProfile[]        @relation("ReferredBuyers")
+  followers            SellerFollower[]
+  shopProducts         SellerShopProduct[]
+  registeredProducts   Product[]             @relation("SellerRegisteredProducts")
+  campaigns            GroupBuyCampaign[]
+  settlements          Settlement[]
+  contentPosts         ContentPost[]
+  orders               Order[]               @relation("SellerOrders")
+  referralCommissions  ReferralCommission[]
+  channelVerifications ChannelVerification[]
+  liveStreams          LiveStream[]
+  games                Game[]
+
+  featureGroupBuy     Boolean @default(true)
+  featureContent      Boolean @default(true)
+  featureLiveCommerce Boolean @default(false)
+  shopDirectExpose    Boolean @default(false)
+  shopNumbering       Boolean @default(false)
+
+  payoutRequests PayoutRequest[]
+  alimtalkAccount AlimtalkAccount?
+
+  @@map("seller_profiles")
+}
+
+model SellerFollower {
+  id        String        @id @default(cuid())
+  buyerId   String
+  buyer     BuyerProfile  @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  sellerId  String
+  seller    SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  createdAt DateTime      @default(now())
+
+  @@unique([buyerId, sellerId])
+  @@map("seller_followers")
+}
+
+// ─────────────────────────────────────────────
+// 추천인 커미션 (레퍼럴 수입)
+// ─────────────────────────────────────────────
+
+enum CommissionStatus {
+  PENDING
+  CONFIRMED
+  PAID
+  CANCELLED
+}
+
+model ReferralCommission {
+  id               String           @id @default(cuid())
+  sellerId         String
+  seller           SellerProfile    @relation(fields: [sellerId], references: [id])
+  orderId          String
+  order            Order            @relation(fields: [orderId], references: [id])
+  buyerUserId      String
+  orderAmount      Decimal          @db.Decimal(12, 2)
+  commissionRate   Decimal          @db.Decimal(5, 2)
+  commissionAmount Decimal          @db.Decimal(12, 2)
+  source           String           @default("referral")
+  status           CommissionStatus @default(PENDING)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@map("referral_commissions")
+}
+
+// ─────────────────────────────────────────────
+// 채널 인증 (유튜브/인스타 구독 인증)
+// ─────────────────────────────────────────────
+
+enum VerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model ChannelVerification {
+  id            String             @id @default(cuid())
+  buyerId       String
+  buyer         BuyerProfile       @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  sellerId      String
+  seller        SellerProfile      @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  channelType   String
+  screenshotUrl String?            @db.LongText
+  status        VerificationStatus @default(PENDING)
+  verifiedAt    DateTime?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@unique([buyerId, sellerId, channelType])
+  @@map("channel_verifications")
+}
+
+// ─────────────────────────────────────────────
+// 브랜드 프로필
+// ─────────────────────────────────────────────
+
+model BrandProfile {
+  id                     String   @id @default(cuid())
+  userId                 String   @unique
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brandName              String
+  brandLogo              String?
+  brandBanner            String?
+  description            String?  @db.Text
+  isApproved             Boolean  @default(false)
+  businessRegistrationNo String?
+  representativeName     String?
+  businessAddress        String?
+  businessType           String?
+  businessCategory       String?
+  contactPhone           String?
+  contactEmail           String?
+
+  // 정산용 계좌 정보
+  bankName               String?
+  accountNumber          String?
+  accountHolder          String?
+
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  middleAdminId String?
+  middleAdmin   MiddleAdminProfile? @relation(fields: [middleAdminId], references: [id])
+  marginMethod  MarginMethod        @default(PERCENTAGE)
+  marginBase    MarginBase          @default(SUPPLY)
+  marginRate    Decimal             @default(0) @db.Decimal(5, 2)
+  commissionRate Decimal            @default(5) @db.Decimal(5, 2)
+
+  products     Product[]
+  settlements  BrandSettlement[]
+
+  @@map("brand_profiles")
+}
+
+// ─────────────────────────────────────────────
+// 브랜드 정산 (수기 처리)
+// ─────────────────────────────────────────────
+
+model BrandSettlement {
+  id          String       @id @default(cuid())
+  brandId     String
+  brand       BrandProfile @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  periodLabel String
+  totalSupply Decimal      @db.Decimal(12, 2)
+  totalSales  Decimal      @db.Decimal(12, 2)
+  orderCount  Int          @default(0)
+  isPaid      Boolean      @default(false)
+  memo        String?      @db.Text
+  paidAt      DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@map("brand_settlements")
+}
+
+// ─────────────────────────────────────────────
+// 카테고리 (계층 구조 지원)
+// ─────────────────────────────────────────────
+
+model Category {
+  id          String     @id @default(cuid())
+  name        String     @unique
+  slug        String     @unique
+  icon        String?
+  image       String?
+  description String?
+  sortOrder   Int        @default(0)
+  isActive    Boolean    @default(true)
+  parentId    String?
+  parent      Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryTree")
+  createdAt   DateTime   @default(now())
+
+  products Product[]
+
+  @@index([parentId])
+  @@map("categories")
+}
+
+// ─────────────────────────────────────────────
+// 상품 (브랜드/관리자가 등록)
+// ─────────────────────────────────────────────
+
+model Product {
+  id                String        @id @default(cuid())
+  name              String
+  slug              String        @unique
+  description       String?       @db.Text
+  detailContent     String?       @db.Text
+  basePrice         Decimal       @db.Decimal(12, 2)
+  comparePrice      Decimal?      @db.Decimal(12, 2)
+  supplyPrice       Decimal?      @db.Decimal(12, 2)
+  middleAdminMargin Decimal?      @db.Decimal(12, 2)
+  // 제공 방식: SUPPLY(공급가 제공 - 셀러가 판매가 결정) / COMMISSION(수수료 제공 - 판매가·수수료 고정)
+  priceModel        PriceModel    @default(SUPPLY)
+  commissionRate    Decimal?      @db.Decimal(5, 2)  // 수수료 제공 시 셀러 수수료율(%)
+  sellerCommissionAmount Decimal? @db.Decimal(12, 2) // 수수료 제공 시 셀러 수수료 금액(정액)
+  categoryId        String?
+  category          Category?     @relation(fields: [categoryId], references: [id])
+  brandId           String?
+  brand             BrandProfile? @relation(fields: [brandId], references: [id])
+  middleAdminId     String?
+  middleAdmin       MiddleAdminProfile? @relation("MiddleAdminProducts", fields: [middleAdminId], references: [id])
+  sellerId          String?
+  registrarSeller   SellerProfile? @relation("SellerRegisteredProducts", fields: [sellerId], references: [id])
+  isActive          Boolean       @default(true)
+  isApproved        Boolean       @default(false)
+  allowGroupBuy     Boolean       @default(true)
+  allowLiveCommerce Boolean       @default(false)
+  badges            String?
+
+  shippingFee           Decimal  @default(0) @db.Decimal(12, 2)
+  freeShipping          Boolean  @default(false)
+  freeShippingThreshold Decimal? @db.Decimal(12, 2)
+  remoteAreaFee         Decimal  @default(0) @db.Decimal(12, 2)
+
+  totalStock Int      @default(0)
+  soldCount  Int      @default(0)
+  thumbnail  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  variants           ProductVariant[]
+  images             ProductImage[]
+  sellerProducts     SellerShopProduct[]
+  campaigns          GroupBuyCampaign[]
+  reviews            Review[]
+  wishlists          Wishlist[]
+  shoppingTags       ShoppingTag[]
+  liveStreamProducts LiveStreamProduct[]
+  chats              ProductChat[]
+
+  @@map("products")
+}
+
+// ─────────────────────────────────────────────
+// 위시리스트 (찜 목록)
+// ─────────────────────────────────────────────
+
+model Wishlist {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+  @@map("wishlists")
+}
+
+model ProductVariant {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name      String
+  sku       String?
+  price     Decimal  @db.Decimal(12, 2)
+  stock     Int      @default(0)
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  orderItems OrderItem[]
+  cartItems  CartItem[]
+
+  @@map("product_variants")
+}
+
+model ProductImage {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String
+  alt       String?
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@map("product_images")
+}
+
+// ─────────────────────────────────────────────
+// 셀러 샵 상품 (셀러가 자기 샵에 추가)
+// ─────────────────────────────────────────────
+
+model SellerShopProduct {
+  id           String        @id @default(cuid())
+  sellerId     String
+  seller       SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  displayOrder Int           @default(0)
+  shopNumber   Int?
+  sellerNote   String?       @db.Text
+  isActive     Boolean       @default(true)
+  isApproved   Boolean       @default(false)
+  createdAt    DateTime      @default(now())
+
+  @@unique([sellerId, productId])
+  @@map("seller_shop_products")
+}
+
+// ─────────────────────────────────────────────
+// 공동구매 캠페인
+// ─────────────────────────────────────────────
+
+enum CampaignStatus {
+  SCHEDULED
+  ACTIVE
+  SUCCESS
+  FAILED
+  SOLDOUT
+  CANCELLED
+  SETTLED
+  REFUNDING
+  REFUNDED
+}
+
+model GroupBuyCampaign {
+  id                String         @id @default(cuid())
+  title             String
+  sellerId          String
+  seller            SellerProfile  @relation(fields: [sellerId], references: [id])
+  productId         String
+  product           Product        @relation(fields: [productId], references: [id])
+  status            CampaignStatus @default(SCHEDULED)
+  campaignPrice     Decimal        @db.Decimal(12, 2)
+  originalPrice     Decimal        @db.Decimal(12, 2)
+  startDate         DateTime
+  endDate           DateTime
+  goalQuantity      Int?
+  minOrderQuantity  Int            @default(1)
+  maxOrderQuantity  Int?
+  limitPerPerson    Int            @default(10)
+  currentQuantity   Int            @default(0)
+  participantCount  Int            @default(0)
+  bannerImage       String?
+  description       String?        @db.Text
+  estimatedDelivery DateTime?
+  commissionRate    Decimal        @default(10) @db.Decimal(5, 2)
+  totalRevenue      Decimal        @default(0) @db.Decimal(12, 2)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  orders      Order[]
+  settlements Settlement[]
+
+  @@map("group_buy_campaigns")
+}
+
+// ─────────────────────────────────────────────
+// 주문
+// ─────────────────────────────────────────────
+
+enum OrderStatus {
+  PENDING
+  PAID
+  CONFIRMED
+  SHIPPING
+  DELIVERED
+  CANCELLED
+  REFUND_REQUESTED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+model Order {
+  id              String            @id @default(cuid())
+  orderNumber     String            @unique
+  userId          String
+  user            User              @relation(fields: [userId], references: [id])
+  sellerId        String
+  seller          SellerProfile     @relation("SellerOrders", fields: [sellerId], references: [id])
+  campaignId      String?
+  campaign        GroupBuyCampaign? @relation(fields: [campaignId], references: [id])
+  status          OrderStatus       @default(PENDING)
+  paymentStatus   PaymentStatus     @default(PENDING)
+  totalAmount     Decimal           @db.Decimal(12, 2)
+  shippingFee     Decimal           @default(0) @db.Decimal(12, 2)
+  discountAmount  Decimal           @default(0) @db.Decimal(12, 2)
+  discountType    String?
+  finalAmount     Decimal           @db.Decimal(12, 2)
+  shippingName    String?
+  shippingPhone   String?
+  shippingAddress String?
+  shippingMemo    String?
+  snsAccounts     String?           @db.Text
+  paymentMethod   String?
+  pgProvider      String?
+  pgTid           String?
+  pgAuthData      String?           @db.Text
+  paidAt          DateTime?
+  shippedAt       DateTime?
+  deliveredAt     DateTime?
+  cancelledAt     DateTime?
+  refundedAt      DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  items                  OrderItem[]
+  referralCommissions    ReferralCommission[]
+  middleAdminCommissions MiddleAdminCommission[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id          String          @id @default(cuid())
+  orderId     String
+  order       Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId   String
+  variantId   String?
+  variant     ProductVariant? @relation(fields: [variantId], references: [id])
+  productName String
+  variantName String?
+  price       Decimal         @db.Decimal(12, 2)
+  quantity    Int
+  totalPrice  Decimal         @db.Decimal(12, 2)
+  createdAt   DateTime        @default(now())
+
+  @@map("order_items")
+}
+
+// ─────────────────────────────────────────────
+// 장바구니
+// ─────────────────────────────────────────────
+
+model CartItem {
+  id         String          @id @default(cuid())
+  userId     String
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId  String
+  variantId  String?
+  variant    ProductVariant? @relation(fields: [variantId], references: [id])
+  sellerId   String
+  campaignId String?
+  quantity   Int             @default(1)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  @@unique([userId, productId, variantId, sellerId, campaignId])
+  @@map("cart_items")
+}
+
+// ─────────────────────────────────────────────
+// 배송지
+// ─────────────────────────────────────────────
+
+model Address {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  phone     String
+  zipCode   String?
+  address1  String
+  address2  String?
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@map("addresses")
+}
+
+// ─────────────────────────────────────────────
+// 리뷰
+// ─────────────────────────────────────────────
+
+model Review {
+  id                String    @id @default(cuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId         String
+  product           Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  rating            Int
+  content           String    @db.Text
+  images            String?   @db.Text
+  isVisible         Boolean   @default(true)
+  isHidden          Boolean   @default(false)
+  sellerComment     String?   @db.Text
+  sellerCommentedAt DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@map("reviews")
+}
+
+// ─────────────────────────────────────────────
+// 정산
+// ─────────────────────────────────────────────
+
+enum SettlementStatus {
+  PENDING
+  CALCULATED
+  APPROVED
+  PAID
+  REJECTED
+}
+
+model Settlement {
+  id               String            @id @default(cuid())
+  sellerId         String
+  seller           SellerProfile     @relation(fields: [sellerId], references: [id])
+  campaignId       String?
+  campaign         GroupBuyCampaign? @relation(fields: [campaignId], references: [id])
+  periodStart      DateTime
+  periodEnd        DateTime
+  totalSales       Decimal           @db.Decimal(12, 2)
+  commissionRate   Decimal           @db.Decimal(5, 2)
+  commissionAmount Decimal           @db.Decimal(12, 2)
+  settlementAmount Decimal           @db.Decimal(12, 2)
+  status           SettlementStatus  @default(PENDING)
+  paidAt           DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@map("settlements")
+}
+
+// ─────────────────────────────────────────────
+// 출금 요청 (셀러가 정산 가능 금액에 대해 출금 신청)
+// ─────────────────────────────────────────────
+
+enum PayoutStatus {
+  REQUESTED
+  APPROVED
+  PAID
+  REJECTED
+}
+
+model PayoutRequest {
+  id            String        @id @default(cuid())
+  sellerId      String
+  seller        SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  amount        Decimal       @db.Decimal(12, 2)
+  netAmount     Decimal       @db.Decimal(12, 2)
+  orderCount    Int           @default(0)
+  status        PayoutStatus  @default(REQUESTED)
+  isBusiness    Boolean       @default(false)
+  bizNumber     String?
+  companyName   String?
+  bankName      String?
+  accountNumber String?
+  accountHolder String?
+  note          String?       @db.Text
+  requestedAt   DateTime      @default(now())
+  processedAt   DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([sellerId])
+  @@index([status])
+  @@map("payout_requests")
+}
+
+// ─────────────────────────────────────────────
+// 중간관리자 마진 적립 (주문별) & 정산
+// ─────────────────────────────────────────────
+
+model MiddleAdminCommission {
+  id            String             @id @default(cuid())
+  middleAdminId String
+  middleAdmin   MiddleAdminProfile @relation(fields: [middleAdminId], references: [id])
+  orderId       String
+  order         Order              @relation(fields: [orderId], references: [id])
+  source        String
+  brandId       String?
+  sellerId      String?
+  orderAmount   Decimal            @db.Decimal(12, 2)
+  marginAmount  Decimal            @db.Decimal(12, 2)
+  status        CommissionStatus   @default(PENDING)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@index([middleAdminId])
+  @@index([orderId])
+  @@map("middle_admin_commissions")
+}
+
+model MiddleAdminSettlement {
+  id               String             @id @default(cuid())
+  middleAdminId    String
+  middleAdmin      MiddleAdminProfile @relation(fields: [middleAdminId], references: [id])
+  periodStart      DateTime
+  periodEnd        DateTime
+  totalSales       Decimal            @db.Decimal(12, 2)
+  marginAmount     Decimal            @db.Decimal(12, 2)
+  settlementAmount Decimal            @db.Decimal(12, 2)
+  status           SettlementStatus   @default(PENDING)
+  paidAt           DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@index([middleAdminId])
+  @@map("middle_admin_settlements")
+}
+
+// ─────────────────────────────────────────────
+// 배너 (CMS)
+// ─────────────────────────────────────────────
+
+model Banner {
+  id        String    @id @default(cuid())
+  title     String
+  subtitle  String?
+  imageUrl  String
+  linkUrl   String?
+  position  String    @default("hero")
+  sortOrder Int       @default(0)
+  isActive  Boolean   @default(true)
+  startDate DateTime?
+  endDate   DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@map("banners")
+}
+
+// ─────────────────────────────────────────────
+// 콘텐츠/룩북
+// ─────────────────────────────────────────────
+
+model ContentPost {
+  id          String        @id @default(cuid())
+  sellerId    String
+  seller      SellerProfile @relation(fields: [sellerId], references: [id])
+  title       String
+  content     String?       @db.Text
+  images      String?       @db.Text
+  category    String?
+  hashtags    String?       @db.Text
+  productTags String?       @db.Text
+  isPublished Boolean       @default(false)
+  isApproved  Boolean       @default(false)
+  viewCount   Int           @default(0)
+  likeCount   Int           @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  shoppingTags ShoppingTag[]
+  likes        ContentLike[]
+  comments     ContentComment[]
+
+  @@map("content_posts")
+}
+
+// ─────────────────────────────────────────────
+// 쇼핑 태그 (이미지 위 상품 태그)
+// ─────────────────────────────────────────────
+
+model ShoppingTag {
+  id         String      @id @default(cuid())
+  contentId  String
+  content    ContentPost @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  imageIndex Int         @default(0)
+  posX       Float
+  posY       Float
+  label      String?
+  createdAt  DateTime    @default(now())
+
+  @@map("shopping_tags")
+}
+
+// ─────────────────────────────────────────────
+// 콘텐츠 좋아요
+// ─────────────────────────────────────────────
+
+model ContentLike {
+  id        String      @id @default(cuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contentId String
+  content   ContentPost @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  createdAt DateTime    @default(now())
+
+  @@unique([userId, contentId])
+  @@map("content_likes")
+}
+
+// ─────────────────────────────────────────────
+// 콘텐츠 댓글
+// ─────────────────────────────────────────────
+
+model ContentComment {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contentId String
+  content   ContentPost      @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  text      String           @db.Text
+  parentId  String?
+  parent    ContentComment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   ContentComment[] @relation("CommentReplies")
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@index([contentId])
+  @@map("content_comments")
+}
+
+// ─────────────────────────────────────────────
+// 알림
+// ─────────────────────────────────────────────
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      String
+  isRead    Boolean  @default(false)
+  linkUrl   String?
+  createdAt DateTime @default(now())
+
+  @@map("notifications")
+}
+
+// ─────────────────────────────────────────────
+// 라이브 커머스
+// ─────────────────────────────────────────────
+
+enum LiveStreamStatus {
+  SCHEDULED
+  LIVE
+  ENDED
+  CANCELLED
+}
+
+model LiveStream {
+  id              String           @id @default(cuid())
+  sellerId        String
+  seller          SellerProfile    @relation(fields: [sellerId], references: [id])
+  title           String
+  description     String?          @db.Text
+  thumbnailImage  String?
+  status          LiveStreamStatus @default(SCHEDULED)
+  scheduledAt     DateTime?
+  startedAt       DateTime?
+  endedAt         DateTime?
+  vodUrl          String?
+  rtmpUrl         String?
+  streamKey       String?
+  platform        String?
+  externalUrl     String?          @db.Text
+  shareCode       String           @unique
+  viewerCount     Int              @default(0)
+  peakViewerCount Int              @default(0)
+  likeCount       Int              @default(0)
+  isVodSaved      Boolean          @default(false)
+  kakaoNotified   Boolean          @default(false)
+  showPastInShop  Boolean          @default(false)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  products     LiveStreamProduct[]
+  chatMessages LiveChatMessage[]
+  coupons      LiveCoupon[]
+
+  @@index([sellerId])
+  @@index([shareCode])
+  @@index([status])
+  @@map("live_streams")
+}
+
+model LiveStreamProduct {
+  id           String     @id @default(cuid())
+  liveStreamId String
+  liveStream   LiveStream @relation(fields: [liveStreamId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sortOrder    Int        @default(0)
+  isActive     Boolean    @default(true)
+  livePrice    Decimal?   @db.Decimal(12, 2)
+  createdAt    DateTime   @default(now())
+
+  @@unique([liveStreamId, productId])
+  @@map("live_stream_products")
+}
+
+model LiveChatMessage {
+  id           String     @id @default(cuid())
+  liveStreamId String
+  liveStream   LiveStream @relation(fields: [liveStreamId], references: [id], onDelete: Cascade)
+  userId       String?
+  nickname     String     @default("익명")
+  message      String     @db.Text
+  isManager    Boolean    @default(false)
+  isSystem     Boolean    @default(false)
+  createdAt    DateTime   @default(now())
+
+  @@index([liveStreamId])
+  @@map("live_chat_messages")
+}
+
+model LiveCoupon {
+  id             String     @id @default(cuid())
+  liveStreamId   String
+  liveStream     LiveStream @relation(fields: [liveStreamId], references: [id], onDelete: Cascade)
+  code           String     @unique
+  discountType   String     // "PERCENT" | "AMOUNT"
+  discountValue  Decimal    @db.Decimal(10, 2)
+  validDays      Int        @default(7)
+  maxCount       Int?
+  minOrderAmount Decimal?   @db.Decimal(12, 2)
+  issuedCount    Int        @default(0)
+  createdAt      DateTime   @default(now())
+
+  claims         UserCoupon[]
+
+  @@index([liveStreamId])
+  @@index([code])
+  @@map("live_coupons")
+}
+
+model UserCoupon {
+  id           String     @id @default(cuid())
+  liveCouponId String
+  liveCoupon   LiveCoupon @relation(fields: [liveCouponId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  claimedAt    DateTime   @default(now())
+  usedAt       DateTime?
+
+  @@unique([liveCouponId, userId])
+  @@index([userId])
+  @@map("user_coupons")
+}
+
+// ─────────────────────────────────────────────
+// 상품별 채팅 (공급자-셀러 간 대화)
+// ─────────────────────────────────────────────
+
+model ProductChat {
+  id         String   @id @default(cuid())
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  senderId   String
+  senderRole String
+  senderName String
+  message    String   @db.Text
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([productId])
+  @@index([senderId])
+  @@map("product_chats")
+}
+
+// ─────────────────────────────────────────────
+// 결제 로그 (PG 통합)
+// ─────────────────────────────────────────────
+
+model PaymentLog {
+  id        String   @id @default(cuid())
+  orderId   String?
+  provider  String
+  stage     String
+  status    String
+  message   String   @db.Text
+  payload   String?  @db.LongText
+  pgTid     String?
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
+  @@index([provider, stage])
+  @@index([createdAt])
+  @@map("payment_logs")
+}
+
+// ─────────────────────────────────────────────
+// NextAuth OAuth 표준 모델
+// ─────────────────────────────────────────────
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ─────────────────────────────────────────────
+// 전역 설정
+// ─────────────────────────────────────────────
+
+model Setting {
+  key       String   @id
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}
+
+// ─────────────────────────────────────────────
+// 게임 관리 (OBS 오버레이용)
+// ──────────
+model Game {
+  id        String        @id @default(cuid())
+  sellerId  String
+  seller    SellerProfile @relation(fields: [sellerId], references: [id])
+  type      String        // "ROULETTE" | "LADDER" | "DRAW"
+  title     String
+  items     String        @db.Text // JSON array of items
+  status    String        @default("IDLE") // IDLE, RUNNING, FINISHED
+  result    String?       @db.Text // JSON result
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([sellerId])
+  @@map("games")
+}
+
+// ─────────────────────────────────────────────
+// Alimtalk (Kakao Business Message)
+// ─────────────────────────────────────────────
+
+model AlimtalkAccount {
+  id         String        @id @default(cuid())
+  sellerId   String        @unique
+  seller     SellerProfile @relation(fields: [sellerId], references: [id])
+  apiKey     String?       // Alimtalk service API key
+  senderKey  String?       // Kakao channel sender profile key
+  balance    Int           @default(0) // remaining credits (units)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  charges    AlimtalkCharge[]
+  logs       AlimtalkLog[]
+
+  @@map("alimtalk_accounts")
+}
+
+model AlimtalkCharge {
+  id          String          @id @default(cuid())
+  accountId   String
+  account     AlimtalkAccount @relation(fields: [accountId], references: [id])
+  amount      Int             // charge amount in KRW
+  vat         Int             // VAT in KRW
+  totalAmount Int             // actual payment amount in KRW
+  credits     Int             // number of credits charged
+  payMethod   String          // "card" | "easy_pay" | "bank_transfer"
+  payStatus   String          @default("PENDING") // PENDING, PAID, FAILED
+  pgTid       String?         // PG transaction ID
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@map("alimtalk_charges")
+}
+
+model AlimtalkLog {
+  id             String          @id @default(cuid())
+  accountId      String
+  account        AlimtalkAccount @relation(fields: [accountId], references: [id])
+  templateCode   String          // template code
+  recipientCount Int             // number of recipients
+  costPerMsg     Int             @default(15) // 15 KRW per message
+  totalCost      Int             // total deducted amount
+  status         String          @default("SENT") // S
+  createdAt      DateTime        @default(now())
+
+  @@map("alimtalk_logs")
+}

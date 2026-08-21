@@ -1,0 +1,209 @@
+import { Icon } from "@/components/shared/Icon";
+import { redirect } from "next/navigation";
+import Link from "next/link";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { getShopAwareLoginPath } from "@/lib/shopLoginRedirect";
+import {} from "lucide-react";
+import SafeImage from "@/components/shared/SafeImage";
+import PickSellerButton from "@/components/shared/PickSellerButton";
+import { pickSellerAvatar } from "@/lib/defaults";
+import { isSellerLive, sellerProfileImage } from "@/lib/sellerLive";
+import LiveStatusPoller from "@/components/shared/LiveStatusPoller";
+import LiveBadge, {
+  LIVE_RING_CLASS,
+  OnAirBadge,
+} from "@/components/shared/LiveBadge";
+
+export const dynamic = "force-dynamic";
+
+// "내 픽" 은 역할과 무관하게 모든 로그인 사용자가 접근 가능 (셀러/관리자/브랜드 포함).
+export default async function MySellerPage() {
+  const session = await auth();
+  if (!session?.user) redirect(getShopAwareLoginPath());
+
+  const profile = await prisma.buyerProfile.findUnique({
+    where: { userId: session.user!.id },
+    include: {
+      primarySeller: {
+        include: {
+          user: { select: { name: true, avatar: true } },
+          liveStreams: {
+            where: { status: "LIVE" },
+            take: 1,
+            select: { id: true, shareCode: true },
+          },
+          _count: {
+            select: { campaigns: true, shopProducts: true, fans: true },
+          },
+        },
+      },
+      follows: {
+        include: {
+          seller: {
+            include: {
+              user: { select: { name: true, avatar: true } },
+              liveStreams: {
+                where: { status: "LIVE" },
+                take: 1,
+                select: { id: true, shareCode: true },
+              },
+              _count: {
+                select: { campaigns: true, shopProducts: true, fans: true },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  const allSellers = [
+    ...(profile?.primarySeller ? [profile.primarySeller] : []),
+    ...(profile?.follows?.map((f) => f.seller) || []),
+  ];
+
+  // Remove duplicates
+  const uniqueSellers = allSellers.filter(
+    (seller, idx, self) => self.findIndex((s) => s.id === seller.id) === idx,
+  );
+
+  return (
+    <div className="animate-fade-in pb-4">
+      <div className="sticky top-12 z-30 bg-white border-b border-gray-100 px-4 py-3">
+        <div className="flex items-center gap-3">
+          <Link href="/my" className="text-gray-500 hover:text-gray-900">
+            <Icon
+              name="ArrowRight"
+              size={20}
+              strokeWidth={1.5}
+              className="rotate-180"
+            />
+          </Link>
+          <h1 className="text-base font-bold text-gray-900">
+            내 Pick 라이브 셀러
+          </h1>
+          {uniqueSellers.length > 0 && (
+            <span className="text-xs text-brand-600 font-bold bg-brand-50 px-2 py-0.5 rounded-full">
+              {uniqueSellers.length}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="px-4 pt-4">
+        {uniqueSellers.length === 0 ? (
+          <div className="text-center py-20 text-gray-400">
+            <Icon
+              name="Wishlist"
+              size={48}
+              strokeWidth={1.5}
+              className="mx-auto mb-3 opacity-30"
+            />
+            <p className="text-sm font-medium text-gray-500">
+              아직 Pick한 라이브 셀러가 없습니다
+            </p>
+            <p className="text-xs text-gray-400 mt-1">
+              좋아하는 라이브 셀러를 Pick하고 소식을 받아보세요!
+            </p>
+            <p className="text-[11px] text-gray-400 mt-3">
+              메인에서 라이브 셀러 이름을 검색해 PICK할 수 있어요
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {uniqueSellers.map((seller) => {
+              const live = isSellerLive(seller);
+              return (
+                <div
+                  key={seller.id}
+                  className="bg-white rounded-xl border border-gray-100 overflow-hidden"
+                >
+                  <Link
+                    href={
+                      live && seller.liveStreams[0]?.shareCode
+                        ? `/live/${seller.liveStreams[0].shareCode}`
+                        : `/shop/${seller.slug}`
+                    }
+                    className="flex items-center gap-3 p-4 hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="relative flex-shrink-0">
+                      <div
+                        className={`w-14 h-14 rounded-full overflow-hidden bg-gray-100 ${live ? LIVE_RING_CLASS : "ring-2 ring-gray-100"}`}
+                      >
+                        <SafeImage
+                          src={sellerProfileImage(seller)}
+                          placeholder={pickSellerAvatar(seller.id)}
+                          alt={seller.shopName}
+                          width={56}
+                          height={56}
+                          fallbackText={seller.shopName.charAt(0)}
+                        />
+                      </div>
+                      {live && (
+                        <LiveBadge className="absolute -bottom-1 left-1/2 -translate-x-1/2" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-sm font-bold text-gray-900 truncate">
+                          {seller.shopName}
+                        </p>
+                        {live && <OnAirBadge className="w-8 h-8" />}
+                      </div>
+                      {seller.mood && (
+                        <p className="text-[11px] text-gray-400 mt-0.5">
+                          {seller.mood}
+                        </p>
+                      )}
+                      <div className="flex items-center gap-3 mt-1 text-[11px] text-gray-400">
+                        <span className="flex items-center gap-0.5">
+                          <Icon name="Users" size={10} /> {seller._count.fans}명
+                        </span>
+                        <span className="flex items-center gap-0.5">
+                          <Icon name="Cart" size={10} />{" "}
+                          {seller._count.campaigns}개 공구
+                        </span>
+                      </div>
+                    </div>
+                    <PickSellerButton
+                      sellerId={seller.id}
+                      sellerName={seller.shopName}
+                    />
+                  </Link>
+                  <div className="px-4 pb-3 space-y-2">
+                    {live &&
+                      (seller.liveStreams[0]?.shareCode ? (
+                        <Link
+                          href={`/live/${seller.liveStreams[0].shareCode}`}
+                          className="w-full flex items-center justify-center gap-1.5 bg-black text-white text-sm font-bold py-2.5 rounded-xl hover:bg-gray-900"
+                        >
+                          라이브 바로가기
+                        </Link>
+                      ) : seller.liveLink ? (
+                        <a
+                          href={seller.liveLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="w-full flex items-center justify-center gap-1.5 bg-black text-white text-sm font-bold py-2.5 rounded-xl hover:bg-gray-900"
+                        >
+                          라이브 바로가기
+                        </a>
+                      ) : null)}
+                    <Link
+                      href={`/shop/${seller.slug}`}
+                      className="w-full inline-flex items-center justify-center gap-1.5 bg-gray-100 text-gray-700 text-xs font-medium py-2 rounded-lg hover:bg-gray-200 transition-colors"
+                    >
+                      라이브 셀러샵 바로가기
+                    </Link>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+      <LiveStatusPoller />
+    </div>
+  );
+}

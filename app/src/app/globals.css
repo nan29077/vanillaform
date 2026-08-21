@@ -1,0 +1,266 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 로고 분위기(말랑말랑·통통·귀여운 바닐라 플라워 캐릭터)에 맞춘 폰트:
+   - Baloo 2: 통통하고 둥근 영문 헤딩(제목/로고 느낌)
+   - Jua: 둥글고 귀여운 한글 헤딩
+   - Fredoka: 둥근 볼드 영문 보조
+   - Nunito: 둥근 영문 본문
+   - Noto Sans KR: 한글 본문(가독성) */
+@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=Jua&family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;500;600;700;800;900&family=Noto+Sans+KR:wght@400;500;700;800&display=swap');
+
+@layer base {
+  :root {
+    --brand: 338 82% 59%;
+  }
+  
+  body {
+    @apply antialiased text-gray-900 font-sans;
+    font-feature-settings: "kern" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* 바닐라 플라워 컨셉: 옅은 바닐라 베이스 + 플라워(플라워) 패턴 — PC 좌우 여백에 은은하게 노출 */
+    background-color: #fdf6e3;
+    background-image: url("data:image/svg+xml,%3Csvg width='28' height='49' viewBox='0 0 28 49' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23f5a700' fill-opacity='0.13'%3E%3Cpath d='M13.99 9.25l13 7.5v15l-13 7.5L1 31.75v-15l12.99-7.5zM3 17.9v12.7l10.99 6.34 11-6.35V17.9l-11-6.34L3 17.9zM0 15l12.98-7.5V0h-2v6.35L0 12.69v2.3zm0 18.5L12.98 41v8h-2v-6.85L0 35.81v-2.3zM15 0v7.5L27.99 15H28v-2.31h-.01L17 6.35V0h-2zm0 49v-8l12.99-7.5H28v2.31h-.01L17 42.15V49h-2z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  }
+
+  /* 제목(헤딩)은 통통하고 둥근 폰트로 — 말랑말랑 귀여운 바닐라 플라워 톤 */
+  h1, h2, h3 {
+    @apply font-display;
+    letter-spacing: -0.01em;
+  }
+
+  /* 바닐라 플라워 테마: 선택 영역 / 폼 컨트롤 accent 색상 통일 */
+  ::selection {
+    background-color: #377255;
+    color: #111827;
+  }
+  input[type="checkbox"],
+  input[type="radio"],
+  input[type="range"],
+  progress {
+    accent-color: #377255;
+  }
+
+  /* 스크롤바 커스텀 (바닐라 톤) */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #ecc35a;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #377255;
+  }
+}
+
+/* ── 라이브 뷰어 다크 UI ─────────────────────────────────────────── */
+.honeycomb-bg {
+  background-color: #050505;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='49' viewBox='0 0 28 49'%3E%3Cg fill='%23F2A900' fill-opacity='0.03'%3E%3Cpolygon points='13.99 9.25 13.99 19.85 8.56 22.85 3.14 19.85 3.14 9.25 8.56 6.25'/%3E%3Cpolygon points='24.99 9.25 24.99 19.85 19.56 22.85 14.14 19.85 14.14 9.25 19.56 6.25'/%3E%3Cpolygon points='13.99 30.25 13.99 40.85 8.56 43.85 3.14 40.85 3.14 30.25 8.56 27.25'/%3E%3C/g%3E%3C/svg%3E");
+}
+.glass-dark {
+  background: rgba(5, 5, 5, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 6px rgba(242, 169, 0, 0.4); }
+  50% { box-shadow: 0 0 16px rgba(242, 169, 0, 0.8); }
+}
+.animate-glow-pulse {
+  animation: glow-pulse 2s ease-in-out infinite;
+}
+
+/* 라이브 "두근두근" 링 펄스 — 셀러샵/단골픽/내픽/라이브검색 공통 (LiveBadge) */
+@keyframes heartbeat {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  25% { transform: scale(1.08); box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+  50% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.2); }
+  75% { transform: scale(1.05); box-shadow: 0 0 0 5px rgba(239, 68, 68, 0); }
+}
+.animate-heartbeat {
+  animation: heartbeat 1.5s ease-in-out infinite;
+}
+
+@layer components {
+  .editorial-heading {
+    @apply font-display text-3xl md:text-5xl lg:text-6xl font-medium tracking-tight leading-tight;
+  }
+  
+  .editorial-subheading {
+    @apply font-display text-xl md:text-2xl font-normal italic text-gray-600;
+  }
+
+  .section-title {
+    @apply text-lg md:text-xl font-semibold tracking-tight text-gray-900;
+  }
+
+  .card-hover {
+    @apply transition-all duration-300 hover:shadow-lg hover:-translate-y-1;
+  }
+
+  .badge-live {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-500 text-white;
+  }
+
+  .badge-scheduled {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-500 text-white;
+  }
+
+  .badge-ended {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-400 text-white;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center px-6 py-3 bg-brand-500 text-black font-bold rounded-3xl
+           hover:bg-brand-600 active:scale-[0.97] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center px-6 py-3 bg-gray-900 text-white font-semibold rounded-3xl
+           hover:bg-gray-800 active:scale-[0.97] transition-all duration-200;
+  }
+
+  .btn-outline {
+    @apply inline-flex items-center justify-center px-6 py-3 border border-gray-300 text-gray-700 font-semibold rounded-3xl
+           hover:bg-gray-50 active:scale-[0.97] transition-all duration-200;
+  }
+
+  .input-field {
+    @apply w-full px-4 py-3 border border-gray-200 rounded-2xl text-sm
+           focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500
+           placeholder:text-gray-400 transition-all;
+  }
+
+  /* 친근한 카드: 큰 라운드 + 은은한 그림자 (말랑말랑) */
+  .card-soft {
+    @apply bg-white rounded-[1.75rem] border border-gray-100 shadow-[0_4px_20px_rgba(245,167,0,0.06)];
+  }
+
+  .campaign-progress {
+    @apply relative h-2 bg-gray-100 rounded-full overflow-hidden;
+  }
+
+  .campaign-progress-bar {
+    @apply absolute left-0 top-0 h-full bg-gradient-to-r from-brand-500 to-brand-400 rounded-full transition-all duration-500;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  
+  .line-clamp-1 {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .line-clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* 수평 스크롤 숨기기 (모바일 앱 스타일) */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* iOS 안전 영역 */
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* 모바일 터치 최적화 */
+  @media (max-width: 640px) {
+    button, a, [role="button"] {
+      -webkit-tap-highlight-color: transparent;
+    }
+    input, textarea, select {
+      font-size: 16px; /* iOS 줌 방지 */
+    }
+  }
+
+  /* 깨진 이미지 대체 스타일 */
+  img[src=""],
+  img:not([src]) {
+    visibility: hidden;
+  }
+
+  /* Product detail content styles */
+  .product-detail-content img {
+    width: 100%;
+    border-radius: 0.5rem;
+    margin: 0.75rem 0;
+  }
+
+  .product-detail-content h3 {
+    font-size: 0.9375rem;
+    font-weight: 700;
+    margin-top: 1.5rem;
+    margin-bottom: 0.5rem;
+    color: #111;
+  }
+
+  .product-detail-content p {
+    font-size: 0.875rem;
+    line-height: 1.7;
+    color: #555;
+    margin-bottom: 0.75rem;
+  }
+
+  .product-detail-content table {
+    width: 100%;
+    font-size: 0.8125rem;
+    border-collapse: collapse;
+    margin: 0.75rem 0;
+  }
+
+  .product-detail-content table td {
+    padding: 0.625rem 0.75rem;
+    border-bottom: 1px solid #f3f4f6;
+  }
+
+  .product-detail-content table td:first-child {
+    color: #9ca3af;
+    width: 30%;
+    font-weight: 500;
+  }
+
+  .product-detail-content ul,
+  .product-detail-content ol {
+    padding-left: 1.25rem;
+    margin: 0.5rem 0;
+  }
+
+  .product-detail-content li {
+    font-size: 0.875rem;
+    line-height: 1.7;
+    color: #555;
+  }
+}
+

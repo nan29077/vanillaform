@@ -1,0 +1,107 @@
+# Dependencies
+node_modules/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+*.egg-info/
+
+# Environment — 실제 자격증명은 저장소에 커밋하지 않는다.
+/app/.env
+.env.local
+.env.*.local
+.env*-backup*
+.env.local-backup-*
+
+# Build
+dist/
+build/
+
+# Prisma 생성 클라이언트 — 빌드 산출물이라 커밋하지 않는다.
+# 서버 배포(deploy.sh)와 npm install(postinstall)이 매번 재생성하므로,
+# 커밋해두면 스키마가 바뀔 때마다 서버의 재생성분과 git pull 이 충돌한다.
+app/src/generated/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Alembic
+alembic/versions/__pycache__/
+
+# pytest
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Vite
+*.local
+
+# Next.js
+.next/
+out/
+
+# Prisma
+.wrangler/
+# Prisma generate 중 생성되는 임시 엔진 바이너리 (커밋 금지)
+app/src/generated/prisma/*.tmp*
+app/src/generated/prisma/*.node.tmp*
+
+# PM2
+.pm2/
+logs/
+pids/
+app/public/uploads/*
+!app/public/uploads/.gitkeep
+
+# DB 백업 (고객 개인정보 포함 — 커밋 금지)
+backups/
+
+# 바닐라폼 로컬 안전 설정/출력
+/app/.next/
+
+# 일회성 헬퍼 스크립트/메모 (Claude Code 작업 중 생성 — 커밋 금지)
+# 정식 스크립트는 scripts/ 폴더에 두면 추적됨
+*.bat
+!/start_dev.bat
+*.vbs
+!/scripts/*.bat
+/*.ps1
+/*.py
+/*.zip
+/app/*.ps1
+/app/*.py
+/commit-log.txt
+/commit-msg.txt
+/fix-msg.txt
+/git_*.txt
+/test*.txt
+/*-result.txt
+/app/*-result.txt
+/*완료*.txt
+/*필요*.txt
+/*확인*.txt
+/*정산*.txt
+
+# LibreOffice 잠금 파일
+.~lock.*#
+
+# Prisma 임시 검사 스크립트
+/app/prisma/_inspect-*
+
+# 루트 바이너리 문서 (별도 보관)
+/*.pptx
+/*.docx
+
+# Prisma generated client (OS별 산출물 — 각 환경에서 prisma generate로 생성)
+app/src/generated/
+*.tsbuildinfo
