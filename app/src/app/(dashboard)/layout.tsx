@@ -40,9 +40,7 @@ export default async function DashboardLayout({
       // 회원 관리
       { href: "/admin/users", iconName: "Users", label: "회원 관리", group: "회원 관리" },
       { href: "/admin/sellers", iconName: "Store", label: "라이브 셀러 관리", group: "회원 관리" },
-      { href: "/admin/middle-admins", iconName: "Settings", label: "중간관리자 관리", group: "회원 관리" },
       { href: "/admin/brands", iconName: "Official", label: "브랜드사 관리", group: "회원 관리" },
-      { href: "/admin/nodes", iconName: "Users", label: "노드 계정 관리", group: "회원 관리" },
       // 상품 관리
       { href: "/admin/products", iconName: "Package", label: "상품 관리", group: "상품 관리" },
       { href: "/admin/package-products", iconName: "Package", label: "패키지 상품 승인", group: "상품 관리" },
@@ -52,9 +50,7 @@ export default async function DashboardLayout({
       { href: "/admin/orders", iconName: "OrderManagement", label: "주문 관리", group: "주문·정산" },
       { href: "/admin/campaigns", iconName: "Event", label: "공동구매 관리", group: "주문·정산" },
       { href: "/admin/settlements", iconName: "Settlement", label: "정산 관리", group: "주문·정산" },
-      { href: "/admin/middle-settlements", iconName: "Settlement", label: "중간관리자 정산", group: "주문·정산" },
       { href: "/admin/brand-settlements", iconName: "Warehouse", label: "브랜드사 정산", group: "주문·정산" },
-      { href: "/admin/node-settlements", iconName: "Bandwidth", label: "노드 정산", group: "주문·정산" },
       { href: "/admin/deposit-transfer", iconName: "Wallet", label: "입금이체(송금)", group: "주문·정산" },
       { href: "/admin/manual-settlement", iconName: "Edit", label: "수기 정산", group: "주문·정산" },
       { href: "/admin/tax", iconName: "Receipt", label: "세무 관리", group: "주문·정산" },
@@ -103,31 +99,6 @@ export default async function DashboardLayout({
       // 설정
       { href: "/seller/settings", iconName: "Settings", label: "설정", group: "설정" },
     ],
-    MIDDLE_ADMIN: [
-      { href: "/middle", iconName: "Dashboard", label: "대시보드", group: "메인" },
-      // 회원 관리
-      { href: "/middle/sellers", iconName: "Store", label: "라이브 셀러 관리", group: "회원 관리" },
-      { href: "/middle/brands", iconName: "Official", label: "브랜드사 관리", group: "회원 관리" },
-      // 상품
-      { href: "/middle/products", iconName: "Package", label: "상품 관리", group: "상품" },
-      { href: "/middle/package-products", iconName: "Package", label: "패키지 상품", group: "상품" },
-      // 주문·정산
-      { href: "/middle/orders", iconName: "OrderManagement", label: "주문 관리", group: "주문·정산" },
-      { href: "/middle/settlements", iconName: "Settlement", label: "마진 정산", group: "주문·정산" },
-      { href: "/middle/brand-settlements", iconName: "Warehouse", label: "브랜드사 정산", group: "주문·정산" },
-      // 설정
-      { href: "/middle/settings", iconName: "Settings", label: "설정", group: "설정" },
-    ],
-    NODE: [
-      { href: "/node", iconName: "Dashboard", label: "대시보드", group: "메인" },
-      { href: "/node/products", iconName: "Package", label: "상품 관리", group: "상품" },
-      { href: "/node/members", iconName: "Users", label: "전체 회원 관리", group: "회원 관리" },
-      { href: "/node/sellers", iconName: "Store", label: "셀러 관리", group: "회원 관리" },
-      { href: "/node/brands", iconName: "Official", label: "브랜드 관리", group: "회원 관리" },
-      { href: "/node/orders", iconName: "OrderManagement", label: "주문 관리", group: "주문·정산" },
-      { href: "/node/settlements", iconName: "Settlement", label: "정산 관리", group: "주문·정산" },
-      { href: "/node/settings", iconName: "Settings", label: "설정", group: "설정" },
-    ],
     BRAND_ADMIN: [
       { href: "/brand", iconName: "Dashboard", label: "대시보드", group: "메인" },
       // 상품·셀러
@@ -146,12 +117,6 @@ export default async function DashboardLayout({
     BUYER: [],
   };
 
-  // 노드 정산 메뉴: 활성 노드 계정이 1개 이상일 때만 표시
-  const activeNodeCount =
-    role === "SUPER_ADMIN"
-      ? await prisma.user.count({ where: { role: "NODE", isActive: true } })
-      : 0;
-
   // 기능 토글에 따라 관련 메뉴 숨김. (href → 필요한 기능 키)
   const flags: FeatureFlags = await getFeatureFlags();
   const MENU_FEATURE_GATE: { match: (href: string) => boolean; key: keyof FeatureFlags }[] = [
@@ -166,8 +131,6 @@ export default async function DashboardLayout({
   const HIDDEN_MENU_HREFS = ["/admin/channel-verifications", "/seller/channel-verifications"];
   const items = (navItems[role] || navItems.BUYER).filter((item) => {
     if (HIDDEN_MENU_HREFS.includes(item.href)) return false;
-    // 노드 정산: 활성 노드가 없으면 메뉴 숨김
-    if (item.href === "/admin/node-settlements") return activeNodeCount > 0;
     // 라이브 상품관리: 라이브커머스 또는 공동구매 중 하나라도 꺼져 있으면 숨김
     if (item.href === "/admin/live-products") return flags.liveCommerce && flags.groupBuy;
     const gate = MENU_FEATURE_GATE.find((g) => g.match(item.href));
@@ -209,8 +172,6 @@ export default async function DashboardLayout({
 
   const roleConfig: Record<string, { label: string; labelEn: string; icon: any; color: string; gradient: string }> = {
     SUPER_ADMIN: { label: "최고관리자", labelEn: "Admin Console", icon: Shield, color: "text-red-600 bg-red-50", gradient: "from-red-500 to-rose-600" },
-    NODE: { label: "노드", labelEn: "Node Console", icon: Shield, color: "text-teal-600 bg-teal-50", gradient: "from-teal-500 to-emerald-600" },
-    MIDDLE_ADMIN: { label: "중간관리자", labelEn: "Partner Console", icon: Shield, color: "text-amber-600 bg-amber-50", gradient: "from-amber-500 to-orange-600" },
     SELLER: { label: "라이브 셀러", labelEn: "Seller Studio", icon: Store, color: "text-blue-600 bg-blue-50", gradient: "from-blue-500 to-indigo-600" },
     BRAND_ADMIN: { label: "브랜드", labelEn: "Brand Portal", icon: Crown, color: "text-purple-600 bg-purple-50", gradient: "from-purple-500 to-violet-600" },
     BUYER: { label: "구매자", labelEn: "My Page", icon: User, color: "text-green-600 bg-green-50", gradient: "from-green-500 to-emerald-600" },

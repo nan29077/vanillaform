@@ -21,8 +21,6 @@ function getDashboardPath(role: string): string {
   switch (role) {
     case "SUPER_ADMIN":
       return "/admin";
-    case "MIDDLE_ADMIN":
-      return "/middle";
     case "SELLER":
       return "/seller";
     case "BRAND_ADMIN":

@@ -33,14 +33,13 @@ interface User {
 }
 
 const dashPath = (r: string) =>
-  r === "SUPER_ADMIN" ? "/admin" : r === "MIDDLE_ADMIN" ? "/middle" : r === "SELLER" ? "/seller" : r === "BRAND_ADMIN" ? "/brand" : "/";
+  r === "SUPER_ADMIN" ? "/admin" : r === "SELLER" ? "/seller" : r === "BRAND_ADMIN" ? "/brand" : "/";
 
 const ROLE_MAP: Record<string, { label: string; color: string; order: number }> = {
   SUPER_ADMIN: { label: "관리자", color: "bg-red-50 text-red-600", order: 1 },
-  MIDDLE_ADMIN: { label: "중간관리자", color: "bg-amber-50 text-amber-600", order: 2 },
-  BRAND_ADMIN: { label: "브랜드", color: "bg-purple-50 text-purple-600", order: 3 },
-  SELLER: { label: "라이브 셀러", color: "bg-blue-50 text-blue-600", order: 4 },
-  BUYER: { label: "구매자", color: "bg-green-50 text-green-600", order: 5 },
+  BRAND_ADMIN: { label: "브랜드", color: "bg-purple-50 text-purple-600", order: 2 },
+  SELLER: { label: "라이브 셀러", color: "bg-blue-50 text-blue-600", order: 3 },
+  BUYER: { label: "구매자", color: "bg-green-50 text-green-600", order: 4 },
 };
 
 export default function UserListClient({ users }: { users: User[] }) {

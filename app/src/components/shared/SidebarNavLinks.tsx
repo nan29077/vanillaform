@@ -37,7 +37,7 @@ export default function SidebarNavLinks({ items }: { items: NavItem[] }) {
           )}
           <div className="space-y-0.5">
             {group.items.map((item) => {
-              const isDashboardRoot = ["/admin", "/seller", "/brand", "/middle"].includes(item.href);
+              const isDashboardRoot = ["/admin", "/seller", "/brand"].includes(item.href);
               const isActive = isDashboardRoot
                 ? pathname === item.href
                 : pathname === item.href || pathname.startsWith(item.href + "/");
