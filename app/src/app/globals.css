@@ -280,3 +280,9 @@
     background-attachment: fixed;
   }
 }
+
+/* 상태 UI의 의미색은 유지하면서 노랑·앰버 SVG 아이콘만 시그니처 그린으로 통일한다. */
+svg[class*="text-yellow-"],
+svg[class*="text-amber-"] {
+  color: #4c8e6b;
+}
