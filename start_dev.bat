@@ -1,17 +1,15 @@
 @echo off
 setlocal
-chcp 65001 >nul 2>&1
-
-title ë°”ë‹ë¼í¼ ê°œë°œ ì„œë²„
+title ¹Ù´Ò¶óÆû °³¹ß ¼­¹ö
 echo.
-echo  [ë°”ë‹ë¼í¼] ê°œë°œ ì„œë²„ë¥¼ http://localhost:3026 ì—ì„œ ì‹œì‘í•©ë‹ˆë‹¤.
+echo  [¹Ù´Ò¶óÆû] °³¹ß ¼­¹ö¸¦ http://localhost:3026 ¿¡¼­ ½ÃÀÛÇÕ´Ï´Ù.
 echo.
 
 cd /d "%~dp0app"
 call npm run guard:isolation
 if errorlevel 1 (
   echo.
-  echo  ì•ˆì „ ë¶„ë¦¬ ê²€ì‚¬ì— ì‹¤íŒ¨í•˜ì—¬ ì‹¤í–‰ì„ ì¤‘ë‹¨í–ˆìŠµë‹ˆë‹¤.
+  echo  ¾ÈÀü ºĞ¸® °Ë»ç¿¡ ½ÇÆĞÇÏ¿© ½ÇÇàÀ» Áß´ÜÇß½À´Ï´Ù.
   pause
   exit /b 1
 )
@@ -20,5 +18,5 @@ start "" cmd /c "timeout /t 8 /nobreak >nul && start http://localhost:3026"
 call npm run dev
 
 echo.
-echo  ì„œë²„ê°€ ì¢…ë£Œë˜ì—ˆìŠµë‹ˆë‹¤.
+echo  ¼­¹ö°¡ Á¾·áµÇ¾ú½À´Ï´Ù.
 pause

@@ -86,6 +86,15 @@ export default function Footer({
               <li><Link href="/support/contact" className="text-xs hover:text-white transition-colors">1대1 문의</Link></li>
               <li><Link href="/support/faq" className="text-xs hover:text-white transition-colors">자주 묻는 질문</Link></li>
               <li><Link href="/support/shipping" className="text-xs hover:text-white transition-colors">배송 안내</Link></li>
+              <li>
+                <a
+                  href="/vanillaform_서비스소개서.pdf"
+                  download
+                  className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                >
+                  서비스 소개서 PDF
+                </a>
+              </li>
             </ul>
           </div>
         </div>
@@ -116,14 +125,6 @@ export default function Footer({
                 <Link href="/support/privacy" className="hover:text-gray-300">개인정보처리방침</Link>
                 <a href="#" className="hover:text-gray-300">사업자정보확인</a>
               </div>
-              <a
-                href="/vanillaform_서비스소개서.pdf"
-                download
-                className="inline-flex items-center gap-1.5 text-[10px] px-3 py-1.5 rounded-full bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 transition-colors border border-indigo-500/30"
-              >
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                서비스 소개서 다운로드
-              </a>
               <p>&copy; {footer.copyright}</p>
             </div>
           </div>
