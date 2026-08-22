@@ -17,6 +17,7 @@ import { getFeatureFlags } from "@/lib/settings";
 import { getSellerFanCount } from "@/lib/sellerFans";
 import { DEFAULT_SHOP_BANNER, DEFAULT_PRODUCT_IMAGE, pickSellerAvatar } from "@/lib/defaults";
 import { OnAirBadge } from "@/components/shared/LiveBadge";
+import DevBuyerLoginBanner from "@/components/dev/DevBuyerLoginBanner";
 
 export const dynamic = "force-dynamic";
 
@@ -321,6 +322,9 @@ export default async function SellerShopPage({
 
       {/* 로그인된 구매자 첫 진입 시 배송지 확인 팝업 (세션당 1회) */}
       <ShopAddressPopup sellerSlug={seller.slug} />
+
+      {/* 구매자 테스트 로그인 배너 (개발용 — 비로그인 시에만 표시) */}
+      <DevBuyerLoginBanner />
 
       {/* ───── 셀러샵 전용 상단 바 (셀러 로고 + 이름, 메인 이동 없음) ───── */}
       <SellerShopHeader

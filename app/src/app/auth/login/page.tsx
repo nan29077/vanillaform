@@ -86,6 +86,27 @@ function LoginForm() {
     router.refresh();
   };
 
+  const handleQuickLogin = async (quickEmail: string, quickPassword: string) => {
+    setError("");
+    setLoading(true);
+    try {
+      const result = await signIn("credentials", {
+        email: quickEmail,
+        password: quickPassword,
+        redirect: false,
+      });
+      if (result?.error) {
+        setError("테스트 계정 로그인 실패. 시드 데이터가 투입됐는지 확인하세요.");
+      } else {
+        await redirectAfterLogin();
+      }
+    } catch {
+      setError("로그인 중 오류가 발생했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -388,6 +409,31 @@ function LoginForm() {
           >
             비밀번호 찾기
           </button>
+        </div>
+
+        {/* 테스트 계정 빠른 로그인 (개발용) */}
+        <div className="mt-4 rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-4">
+          <p className="mb-3 text-center text-[11px] font-medium text-gray-400">
+            테스트 계정으로 빠른 로그인
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => handleQuickLogin("admin@vanillaform.local", "password123")}
+              disabled={loading}
+              className="rounded-xl bg-gray-800 py-2.5 text-xs font-semibold text-white hover:bg-gray-700 transition-colors disabled:opacity-50"
+            >
+              관리자로 로그인
+            </button>
+            <button
+              type="button"
+              onClick={() => handleQuickLogin("seller1@vanillaform.local", "password123")}
+              disabled={loading}
+              className="rounded-xl bg-emerald-700 py-2.5 text-xs font-semibold text-white hover:bg-emerald-600 transition-colors disabled:opacity-50"
+            >
+              셀러로 로그인
+            </button>
+          </div>
         </div>
 
         <div className="mt-4 text-center">
