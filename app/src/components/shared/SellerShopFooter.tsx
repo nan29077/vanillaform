@@ -75,7 +75,7 @@ export default function SellerShopFooter({ sellerInfo }: SellerShopFooterProps) 
           >
             <Icon name="Info" size={13} className="text-gray-400 flex-shrink-0" />
             <span className="flex-1 text-[10.5px] text-gray-500 leading-snug">
-              <b className="text-gray-600 font-semibold">바닐라폼는 통신판매중개자</b>이며 거래의 당사자가 아닙니다.
+              <b className="text-gray-600 font-semibold">바닐라폼은 통신판매중개자</b>이며 거래의 당사자가 아닙니다.
             </span>
             <span className="text-[9px] text-gray-400 flex items-center gap-0.5 flex-shrink-0">
               자세히 보기
@@ -86,8 +86,8 @@ export default function SellerShopFooter({ sellerInfo }: SellerShopFooterProps) 
           {open && (
             <div className="px-3 pb-3 pt-0.5 border-t border-gray-50 animate-fade-in">
               <p className="text-[10px] text-gray-500 leading-relaxed mt-2">
-                바닐라폼는 통신판매중개자로서 통신판매의 당사자가 아니며, 상품의 주문·배송·환불 등 거래에 대한
-                의무와 책임은 판매자(라이브 셀러)에게 있습니다. 바닐라폼는 거래 시스템(플랫폼)을 제공할 뿐 개별 거래에 대해서는
+                바닐라폼은 통신판매중개자로서 통신판매의 당사자가 아니며, 상품의 주문·배송·환불 등 거래에 대한
+                의무와 책임은 판매자(라이브 셀러)에게 있습니다. 바닐라폼은 거래 시스템(플랫폼)을 제공할 뿐 개별 거래에 대해서는
                 책임을 지지 않습니다.
               </p>
               <div className="mt-3 pt-3 border-t border-gray-50 space-y-0.5 text-[10px] text-gray-400 leading-relaxed">

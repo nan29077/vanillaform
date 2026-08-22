@@ -118,7 +118,7 @@ export default function HomeContentManager({
       <section className="bg-white rounded-xl border border-gray-100 p-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-bold text-gray-900 flex items-center gap-1.5">
-            <Quote size={15} className="text-brand-600" /> 바닐라폼로 성공한 라이브 셀러
+            <Quote size={15} className="text-brand-600" /> 바닐라폼으로 성공한 라이브 셀러
           </h2>
           <button
             onClick={() => setStories((p) => [...p, { name: "", quote: "", metric: "", avatar: AVATARS[0] }])}
@@ -160,7 +160,7 @@ export default function HomeContentManager({
 
       <section className="bg-white rounded-xl border border-gray-100 p-4">
         <h2 className="text-sm font-bold text-gray-900 flex items-center gap-1.5 mb-4">
-          <Sparkles size={15} className="text-brand-600" /> 바닐라폼로 얻는 것
+          <Sparkles size={15} className="text-brand-600" /> 바닐라폼으로 얻는 것
         </h2>
         <div className="mb-4">
           <div className="flex items-center justify-between mb-2">
@@ -213,7 +213,7 @@ export default function HomeContentManager({
           </div>
         </div>
         <SectionSaveButton saving={savingBenefits} label="얻는 것 저장"
-          onClick={() => save(setSavingBenefits, { section: "benefits", benefitStats, benefitItems }, "바닐라폼로 얻는 것이 저장되었습니다.")} />
+          onClick={() => save(setSavingBenefits, { section: "benefits", benefitStats, benefitItems }, "바닐라폼으로 얻는 것이 저장되었습니다.")} />
       </section>
 
       <section className="bg-white rounded-xl border border-gray-100 p-4">

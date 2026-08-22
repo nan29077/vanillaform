@@ -22,7 +22,7 @@ export const DEFAULT_HOME_STATS: HomeStat[] = [
   { value: "98%", label: "배송 만족도" },
 ];
 
-// "바닐라폼로 성공한 셀러" 기본값
+// "바닐라폼으로 성공한 셀러" 기본값
 export const DEFAULT_HOME_STORIES: HomeStory[] = [
   { name: "유나 · 뷰티 라이브 셀러", quote: "취미로 올리던 메이크업이 단골 팬을 만나 매달 안정적인 수입이 됐어요. 라이브로 소통하니 재구매가 확 늘었어요.", metric: "월 매출 1,800만+", avatar: "/avatars/라이브셀러_2.png" },
   { name: "도현 · 리빙 라이브 셀러", quote: "상품 소싱이 제일 막막했는데, 브랜드 상품을 골라 담기만 하면 돼서 시작이 쉬웠어요. 지금은 본업이 됐어요.", metric: "PICK 팬 6.4K", avatar: "/avatars/라이브셀러_5.png" },
@@ -30,7 +30,7 @@ export const DEFAULT_HOME_STORIES: HomeStory[] = [
   { name: "태리 · 스포츠 라이브 셀러", quote: "정산·배송을 신경 안 써도 되니 콘텐츠와 방송에만 집중할 수 있어요. 그게 매출로 바로 이어지더라고요.", metric: "누적 거래 3.2억", avatar: "/avatars/라이브셀러_10.png" },
 ];
 
-// "바닐라폼로 얻는 것" 기본값
+// "바닐라폼으로 얻는 것" 기본값
 export const DEFAULT_HOME_BENEFITS: HomeBenefits = {
   stats: [
     { value: "68%", label: "단골 재구매율", sub: "PICK 라이브 셀러 기준" },

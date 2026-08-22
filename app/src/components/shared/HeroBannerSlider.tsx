@@ -20,7 +20,7 @@ const DEFAULT_BANNERS: BannerSlide[] = [
     id: "default-1",
     title: "좋아하는 라이브 셀러의\n라이브를 즐기다",
     subtitle: "VANILLAFORM LIVE",
-    imageUrl: "/banners/banner1.jpg",
+    imageUrl: "/images/vanillaform-hero-live-creator.jpg",
     linkUrl: "/live",
     gradient: "from-gray-900/80 via-gray-900/35 to-transparent",
   },
@@ -28,7 +28,7 @@ const DEFAULT_BANNERS: BannerSlide[] = [
     id: "default-2",
     title: "지금, 라이브 셀러와\n실시간으로 소통",
     subtitle: "Live Commerce",
-    imageUrl: "/banners/banner2.jpg",
+    imageUrl: "/images/vanillaform-hero-live-shopper.jpg",
     linkUrl: "/live",
     gradient: "from-gray-900/80 via-gray-900/35 to-transparent",
   },
@@ -36,7 +36,7 @@ const DEFAULT_BANNERS: BannerSlide[] = [
     id: "default-3",
     title: "라이브 셀러가 직접 고른\n오늘의 추천",
     subtitle: "Seller's Pick",
-    imageUrl: "/banners/banner3.jpg",
+    imageUrl: "/images/vanillaform-hero-curated-pick.jpg",
     linkUrl: "/live",
     gradient: "from-gray-900/80 via-gray-900/35 to-transparent",
   },
@@ -122,7 +122,7 @@ export default function HeroBannerSlider({ banners, liveCampaignCount = 0 }: Her
           <img
             src={s.imageUrl}
             alt=""
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover object-center"
             loading={idx === 0 ? "eager" : "lazy"}
           />
         </div>

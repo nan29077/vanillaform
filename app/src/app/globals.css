@@ -264,3 +264,19 @@
   }
 }
 
+/* PC에서만 모바일 퍼스트 본문 양옆에 바닐라폼 실사 스튜디오 여백을 노출한다. */
+.vanillaform-public-shell {
+  background-color: #f3f8f5;
+}
+
+@media (min-width: 768px) {
+  .vanillaform-public-shell {
+    background-image:
+      linear-gradient(90deg, rgba(243, 248, 245, 0.08), rgba(255, 255, 255, 0.18) 50%, rgba(243, 248, 245, 0.08)),
+      url("/images/vanillaform-desktop-margin.jpg");
+    background-position: center top;
+    background-repeat: no-repeat;
+    background-size: cover;
+    background-attachment: fixed;
+  }
+}

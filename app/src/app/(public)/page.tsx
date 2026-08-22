@@ -204,21 +204,26 @@ export default async function HomePage({
 
   const { liveCommerce: FEATURE_LIVE } = await getFeatureFlags();
   const { liveSellers, isBuyer } = await getHomeData(FEATURE_LIVE);
+  const useDatabaseSiteBanners = process.env.USE_DATABASE_SITE_BANNERS === "true";
 
   // 관리자 "사이트 관리 > 메인페이지 관리"에서 수정 가능한 숫자/성공스토리/혜택
   const [homeStats, homeStories, homeBenefits] = await Promise.all([getHomeStats(), getHomeStories(), getHomeBenefits()]);
 
   // 최고관리자 배너 관리에서 등록한 상단 배너(최대 3개, 슬라이드) + 하단 배너
   const [heroBanners, bottomBanner, activeCampaignCount] = await Promise.all([
-    prisma.banner.findMany({
-      where: { isActive: true, position: "hero" },
-      orderBy: { sortOrder: "asc" },
-      take: 3,
-    }),
-    prisma.banner.findFirst({
-      where: { isActive: true, position: "bottom" },
-      orderBy: { sortOrder: "asc" },
-    }),
+    useDatabaseSiteBanners
+      ? prisma.banner.findMany({
+          where: { isActive: true, position: "hero" },
+          orderBy: { sortOrder: "asc" },
+          take: 3,
+        })
+      : Promise.resolve([]),
+    useDatabaseSiteBanners
+      ? prisma.banner.findFirst({
+          where: { isActive: true, position: "bottom" },
+          orderBy: { sortOrder: "asc" },
+        })
+      : Promise.resolve(null),
     prisma.groupBuyCampaign.count({ where: { status: "ACTIVE" } }),
   ]);
 
@@ -356,7 +361,7 @@ export default async function HomePage({
 
       {/* ───── 바닐라폼 소개: 우리는 이런 곳이에요 ───── */}
       <section className="px-5 pt-8 pb-2">
-        <h2 className="text-[17px] font-extrabold text-gray-900">바닐라폼는요</h2>
+        <h2 className="text-[17px] font-extrabold text-gray-900">바닐라폼은요</h2>
         <p className="mt-1.5 text-[13px] text-gray-500 leading-relaxed">
           브랜드의 좋은 상품을, 신뢰하는 라이브 셀러(인플루언서)의 목소리로 만나는 곳.
           정해진 라이브 셀러를 통해서만 쇼핑하는, 단골 중심의 새로운 커머스예요.
@@ -377,9 +382,9 @@ export default async function HomePage({
         <SellerMarquee />
       </section>
 
-      {/* ───── 바닐라폼로 얻는 것 (통계·효과·혜택) ───── */}
+      {/* ───── 바닐라폼으로 얻는 것 (통계·효과·혜택) ───── */}
       <section className="px-5 pt-7 pb-2">
-        <h2 className="text-[17px] font-extrabold text-gray-900">바닐라폼로 얻는 것</h2>
+        <h2 className="text-[17px] font-extrabold text-gray-900">바닐라폼으로 얻는 것</h2>
         <p className="mt-1 text-[12px] text-gray-500">단골 중심 커머스가 만드는 차이</p>
         <div className="mt-4 grid grid-cols-2 gap-2.5">
           {homeBenefits.stats.map((s, i) => (
@@ -412,7 +417,7 @@ export default async function HomePage({
       {/* ───── 성공한 셀러 스토리 ───── */}
       <section className="pt-8 pb-1">
         <div className="px-5 mb-3">
-          <h2 className="text-[17px] font-extrabold text-gray-900">바닐라폼로 성공한 라이브 셀러</h2>
+          <h2 className="text-[17px] font-extrabold text-gray-900">바닐라폼으로 성공한 라이브 셀러</h2>
           <p className="mt-1 text-[12px] text-gray-500">평범한 일상에서, 나만의 샵으로</p>
         </div>
         <div className="flex gap-3 overflow-x-auto scrollbar-hide px-4 pb-1">
@@ -656,7 +661,7 @@ export default async function HomePage({
           <div className="w-11 h-11 rounded-full bg-brand-500 flex items-center justify-center mx-auto mb-3">
             <Sparkles size={18} className="text-black" />
           </div>
-          <h2 className="text-[16px] font-extrabold text-gray-900">바닐라폼와 더 가까이</h2>
+          <h2 className="text-[16px] font-extrabold text-gray-900">바닐라폼과 더 가까이</h2>
           <p className="text-[12px] text-gray-500 mt-1 leading-relaxed">
             새로운 라이브 셀러와 라이브 소식,<br />이벤트를 가장 먼저 받아보세요.
           </p>

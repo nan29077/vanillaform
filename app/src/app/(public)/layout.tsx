@@ -24,7 +24,7 @@ export default async function PublicLayout({
 
   return (
     <ShopChromeProvider initialShop={initialShop}>
-      <div className="min-h-screen">
+      <div className="vanillaform-public-shell min-h-screen">
         <div className="max-w-[480px] mx-auto bg-white min-h-screen shadow-[0_0_40px_rgba(0,0,0,0.08)] pb-[env(safe-area-inset-bottom)]">
           <Suspense fallback={null}>
             <Header />
