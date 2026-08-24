@@ -14,11 +14,14 @@ const nextConfig = {
     unoptimized: true,
     minimumCacheTTL: 86400,
   },
+  // 빌드 안전망 — 타입/린트 에러를 무시하지 않는다.
+  // 무시 설정이 켜져 있으면 컴파일이 안 되는 코드가 그대로 배포되어,
+  // 런타임에서야 터진다(권한 분기 오타 같은 것도 빌드가 잡아주지 못한다).
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
   eslint: {
-    ignoreDuringBuilds: true,
+    ignoreDuringBuilds: false,
   },
   allowedDevOrigins: [
     "*.sandbox.novita.ai",

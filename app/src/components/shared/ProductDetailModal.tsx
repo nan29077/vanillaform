@@ -1,6 +1,7 @@
 "use client";
 
 import { Icon } from '@/components/shared/Icon';
+import { sanitizeHtml } from "@/lib/sanitize";
 import { useState, useEffect } from "react";
 import {X, Loader2, Layers, Image as ImageIcon} from 'lucide-react';
 import SafeImage from "@/components/shared/SafeImage";
@@ -260,7 +261,7 @@ export default function ProductDetailModal({ productId, productName, triggerClas
                   {data.detailContent && (
                     <div className="space-y-1.5">
                       <p className="text-xs font-semibold text-gray-700 flex items-center gap-1.5"><ImageIcon size={13} /> 상세 설명</p>
-                      <div className="prose prose-sm max-w-none text-[13px] text-gray-700 border border-gray-100 rounded-xl p-3.5" dangerouslySetInnerHTML={{ __html: data.detailContent }} />
+                      <div className="prose prose-sm max-w-none text-[13px] text-gray-700 border border-gray-100 rounded-xl p-3.5" dangerouslySetInnerHTML={{ __html: sanitizeHtml(data.detailContent) }} />
                     </div>
                   )}
                 </div>

@@ -48,6 +48,46 @@ export async function GET() {
       ...(brandProductIds.length ? [{ items: { some: { productId: { in: brandProductIds } } } }] : []),
       ...(!sellerIds.length && !brandProductIds.length ? [{ id: "__none__" }] : []),
     ];
+  } else if (role === "NODE") {
+    // 노드: 담당 중간관리자 소속 셀러의 주문 + 담당(또는 소속 중간관리자의) 브랜드 상품 주문.
+    // 분기가 없으면 where 가 비어 SUPER_ADMIN 과 동일한 전체 주문 조회가 됐다.
+    // 범위 판정은 /api/node/members 와 동일한 assignedNodeId 기준을 쓴다.
+    const nodeUserId = session.user!.id;
+    const middleAdmins = await prisma.middleAdminProfile.findMany({
+      where: { assignedNodeId: nodeUserId } as any,
+      select: { id: true },
+    });
+    const middleAdminIds = middleAdmins.map((m) => m.id);
+
+    const sellers = middleAdminIds.length
+      ? await prisma.sellerProfile.findMany({
+          where: { middleAdminId: { in: middleAdminIds } },
+          select: { id: true },
+        })
+      : [];
+    const sellerIds = sellers.map((s) => s.id);
+
+    const brands = await prisma.brandProfile.findMany({
+      where: {
+        OR: [
+          ...(middleAdminIds.length ? [{ middleAdminId: { in: middleAdminIds } }] : []),
+          { assignedNodeId: nodeUserId } as any,
+        ],
+      },
+      select: { products: { select: { id: true } } },
+    });
+    const brandProductIds = brands.flatMap((b) => b.products.map((p) => p.id));
+
+    where.OR = [
+      ...(sellerIds.length ? [{ sellerId: { in: sellerIds } }] : []),
+      ...(brandProductIds.length
+        ? [{ items: { some: { productId: { in: brandProductIds } } } }]
+        : []),
+      ...(!sellerIds.length && !brandProductIds.length ? [{ id: "__none__" }] : []),
+    ];
+  } else if (role !== "SUPER_ADMIN") {
+    // 알 수 없는 역할이 추가되더라도 전체 주문이 새어나가지 않도록 기본값은 "조회 불가".
+    where.id = "__none__";
   }
   // SUPER_ADMIN: where 비움 = 전체 주문
 
@@ -112,6 +152,23 @@ export async function POST(request: Request) {
 
   if (!sellerId || !Array.isArray(items) || items.length === 0) {
     return NextResponse.json({ error: "주문 정보가 올바르지 않습니다." }, { status: 400 });
+  }
+
+  // ─── 배송지 필수 검증 ───
+  // 취급 상품이 전부 실물 배송 상품이라 배송지 없이 주문이 만들어지면 발송 자체가 불가능하다.
+  // 클라이언트(checkout/장바구니)에는 입력 검증이 없어 빈 값 그대로 넘어오거나,
+  // API 를 직접 호출하면 아예 필드를 빼고 주문할 수 있었다.
+  const shippingNameTrimmed = typeof shippingName === "string" ? shippingName.trim() : "";
+  const shippingPhoneTrimmed = typeof shippingPhone === "string" ? shippingPhone.trim() : "";
+  const shippingAddressTrimmed = typeof shippingAddress === "string" ? shippingAddress.trim() : "";
+  if (!shippingNameTrimmed) {
+    return NextResponse.json({ error: "받는 분 이름을 입력해 주세요." }, { status: 400 });
+  }
+  if (!shippingPhoneTrimmed || shippingPhoneTrimmed.replace(/[^0-9]/g, "").length < 9) {
+    return NextResponse.json({ error: "받는 분 연락처를 올바르게 입력해 주세요." }, { status: 400 });
+  }
+  if (!shippingAddressTrimmed) {
+    return NextResponse.json({ error: "배송 주소를 입력해 주세요." }, { status: 400 });
   }
 
   // 셀러 존재 확인 (할인/커미션 계산에도 재사용)
@@ -405,11 +462,15 @@ export async function POST(request: Request) {
         const minAmountOk = !coupon.minOrderAmount || totalAmount >= Number(coupon.minOrderAmount);
 
         if (!alreadyUsed && !countExceeded && minAmountOk) {
-          if (coupon.discountType === "PERCENT") {
-            couponDiscountAmount = Math.round(totalAmount * Number(coupon.discountValue) / 100);
-          } else {
-            couponDiscountAmount = Math.min(Number(coupon.discountValue), totalAmount - discountAmount - cartDiscountAmount);
-          }
+          // 할인 상한 — 다른 할인(추천/픽 + 장바구니)을 뺀 잔액을 넘길 수 없다.
+          // PERCENT 에 상한이 없으면 100% 이상 쿠폰이나 장바구니 할인과의 중복으로
+          // finalAmount 가 음수(=결제금액 마이너스)가 될 수 있었다.
+          const couponCap = Math.max(0, totalAmount - discountAmount - cartDiscountAmount);
+          const rawCouponDiscount =
+            coupon.discountType === "PERCENT"
+              ? Math.round((totalAmount * Number(coupon.discountValue)) / 100)
+              : Number(coupon.discountValue);
+          couponDiscountAmount = Math.min(rawCouponDiscount, couponCap);
           appliedCouponId = coupon.id;
           existingUserCouponId = existingUserCoupon?.id ?? null;
         }
@@ -433,11 +494,13 @@ export async function POST(request: Request) {
     ) {
       const minOrder = Number(gc.gameCoupon?.minOrderAmount ?? 0);
       if (!minOrder || totalAmount >= minOrder) {
-        if (gc.gameCoupon?.discountType === "PERCENT") {
-          couponDiscountAmount = Math.round((totalAmount * Number(gc.gameCoupon.discountValue)) / 100);
-        } else {
-          couponDiscountAmount = Math.min(Number(gc.gameCoupon?.discountValue ?? 0), totalAmount - discountAmount - cartDiscountAmount);
-        }
+        // 라이브 쿠폰과 동일한 상한 적용 (음수 결제금액 방지)
+        const gameCouponCap = Math.max(0, totalAmount - discountAmount - cartDiscountAmount);
+        const rawGameDiscount =
+          gc.gameCoupon?.discountType === "PERCENT"
+            ? Math.round((totalAmount * Number(gc.gameCoupon.discountValue)) / 100)
+            : Number(gc.gameCoupon?.discountValue ?? 0);
+        couponDiscountAmount = Math.min(rawGameDiscount, gameCouponCap);
         appliedGameCouponRowId = gc.id;
       }
     }
@@ -590,9 +653,9 @@ export async function POST(request: Request) {
           : discountType,
         cartDiscountAmount,
         finalAmount,
-        shippingName,
-        shippingPhone,
-        shippingAddress,
+        shippingName: shippingNameTrimmed,
+        shippingPhone: shippingPhoneTrimmed,
+        shippingAddress: shippingAddressTrimmed,
         shippingMemo,
         snsAccounts: snsAccountsJson,
         sellerFeeRateSnap,

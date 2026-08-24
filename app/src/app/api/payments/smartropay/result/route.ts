@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { voidPendingOrder } from "@/lib/orderStock";
 import { requestSmartropayApproval, isSmartropaySuccess } from "@/lib/smartropay";
 import { logPayment } from "@/lib/paymentLog";
 import { notifyOrderPlacedToSeller } from "@/lib/alimtalkTriggers";
@@ -59,7 +60,7 @@ export async function POST(request: Request) {
   }
 
   if (cancelled) {
-    if (order) await markOrderFailed(order.id, "사용자 결제 중단");
+    if (order) await markOrderFailed(order.id, "사용자 결제 중단", Tid || undefined);
     await logPayment({
       orderId: order?.id ?? null,
       provider: "smartropay",
@@ -74,7 +75,7 @@ export async function POST(request: Request) {
 
   // 인증 단계 성공 코드: 카드 "0000", 간편결제는 결제수단별 코드(KP00 등) — 헬퍼로 판정.
   if (ResultCode && !isSmartropaySuccess(ResultCode)) {
-    if (order) await markOrderFailed(order.id, `[${ResultCode}] ${ResultMsg}`);
+    if (order) await markOrderFailed(order.id, `[${ResultCode}] ${ResultMsg}`, Tid || undefined);
     await logPayment({
       orderId: order?.id ?? null,
       provider: "smartropay",
@@ -88,7 +89,7 @@ export async function POST(request: Request) {
   }
 
   if (!Tid || !TrAuthKey) {
-    if (order) await markOrderFailed(order.id, "인증 응답 누락");
+    if (order) await markOrderFailed(order.id, "인증 응답 누락", Tid || undefined);
     await logPayment({
       orderId: order?.id ?? null,
       provider: "smartropay",
@@ -111,7 +112,7 @@ export async function POST(request: Request) {
     return htmlRedirect(failRedirect(null, "주문 매핑 실패"));
   }
   if (Amt && Math.round(Number(order.finalAmount)) !== Number(Amt)) {
-    await markOrderFailed(order.id, "금액 불일치");
+    await markOrderFailed(order.id, "금액 불일치", Tid);
     await logPayment({
       orderId: order.id,
       provider: "smartropay",
@@ -127,7 +128,7 @@ export async function POST(request: Request) {
     const approval = await requestSmartropayApproval({ Tid, TrAuthKey });
 
     if (!isSmartropaySuccess(approval.ResultCode)) {
-      await markOrderFailed(order.id, `[${approval.ResultCode}] ${approval.ResultMsg}`);
+      await markOrderFailed(order.id, `[${approval.ResultCode}] ${approval.ResultMsg}`, approval.Tid ?? Tid);
       await logPayment({
         orderId: order.id,
         provider: "smartropay",
@@ -142,7 +143,7 @@ export async function POST(request: Request) {
 
     // 승인 응답 금액 교차 검증 (변조 방지).
     if (approval.Amt && Math.round(Number(order.finalAmount)) !== Number(approval.Amt)) {
-      await markOrderFailed(order.id, "승인 금액 불일치");
+      await markOrderFailed(order.id, "승인 금액 불일치", approval.Tid ?? Tid);
       await logPayment({
         orderId: order.id,
         provider: "smartropay",
@@ -182,7 +183,7 @@ export async function POST(request: Request) {
 
     return htmlRedirect(successRedirect(order.id));
   } catch (e: any) {
-    await markOrderFailed(order.id, `승인 요청 오류: ${e?.message ?? "unknown"}`);
+    await markOrderFailed(order.id, `승인 요청 오류: ${e?.message ?? "unknown"}`, Tid || undefined);
     await logPayment({
       orderId: order.id,
       provider: "smartropay",
@@ -212,25 +213,28 @@ export async function GET(request: Request) {
   );
 }
 
-async function markOrderFailed(orderId: string, reason: string) {
-  // 방어선 2: 이미 결제완료된 주문은 어떤 경로로도 실패로 덮어쓰지 않는다.
-  const existing = await prisma.order.findUnique({
-    where: { id: orderId },
-    select: { paymentStatus: true },
+/**
+ * 결제 실패/중단 시 주문을 무효화한다.
+ *
+ * 예전에는 Order 의 상태 컬럼만 FAILED 로 덮어써서, 주문 생성 시 선점한 재고와
+ * 캠페인 카운터·추천/멘토 커미션이 그대로 남았다(= 실패할수록 재고가 사라지는 버그).
+ * seedpay/result·ongi/callback 과 동일하게 voidPendingOrder 로 통일한다.
+ *
+ * voidPendingOrder 는 (1) 이미 결제완료된 주문은 건드리지 않고,
+ * (2) 상태 전이에 성공한 호출만 롤백을 수행하므로 중복 콜백에도 안전하다.
+ */
+async function markOrderFailed(orderId: string, reason: string, tid?: string) {
+  const result = await voidPendingOrder(orderId, {
+    pgProvider: "smartropay",
+    ...(tid ? { pgTid: tid } : {}),
+    pgAuthData: JSON.stringify({ failed: true, reason }),
   });
-  if (existing?.paymentStatus === "COMPLETED") {
-    console.warn(`[smartropay/result] markOrderFailed 무시 — 이미 결제완료 (orderId=${orderId}, reason=${reason})`);
-    return;
+  if (result === "COMPLETED") {
+    console.warn(
+      `[smartropay/result] markOrderFailed 무시 — 이미 결제완료 (orderId=${orderId}, reason=${reason})`,
+    );
   }
-  await prisma.order.update({
-    where: { id: orderId },
-    data: {
-      status: "CANCELLED",
-      paymentStatus: "FAILED",
-      cancelledAt: new Date(),
-      pgAuthData: JSON.stringify({ failed: true, reason }),
-    },
-  });
+  return result;
 }
 
 function htmlRedirect(url: string) {

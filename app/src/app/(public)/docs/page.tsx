@@ -1,4 +1,5 @@
 import { Icon } from '@/components/shared/Icon';
+import { sanitizeHtmlServer } from "@/lib/sanitizeServer";
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
 import Link from "next/link";
@@ -81,7 +82,7 @@ export default async function DocsPage() {
       <div className="px-4 py-6">
         <div
           className="prose prose-sm max-w-none"
-          dangerouslySetInnerHTML={{ __html: html }}
+          dangerouslySetInnerHTML={{ __html: sanitizeHtmlServer(html) }}
         />
       </div>
 

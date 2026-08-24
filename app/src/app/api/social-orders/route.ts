@@ -59,14 +59,37 @@ export async function POST(request: Request) {
 }
 
 // 소셜주문서 조회 (?sellerId=xxx [&productId=xxx])
+//
+// 반환값에 구매자 실명·주소·연락처가 그대로 담기므로 인증·소유권 검사가 필수다.
+// (과거엔 인증이 전혀 없어 sellerId 만 알면 누구나 전 구매자 개인정보를 조회할 수 있었다)
+//  - SELLER                     : 본인 sellerId 의 주문서만
+//  - SUPER_ADMIN / MIDDLE_ADMIN : 임의 셀러 조회 허용 (CS·정산 확인용)
 export async function GET(request: Request) {
   try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const sellerId = searchParams.get("sellerId");
     const productId = searchParams.get("productId");
 
     if (!sellerId) {
       return NextResponse.json({ error: "sellerId가 필요합니다." }, { status: 400 });
+    }
+
+    const role = (session.user as any).role as string;
+    if (role === "SELLER") {
+      const seller = await prisma.sellerProfile.findUnique({
+        where: { userId: session.user.id },
+        select: { id: true },
+      });
+      if (!seller || seller.id !== sellerId) {
+        return NextResponse.json({ error: "본인 샵의 주문서만 조회할 수 있습니다." }, { status: 403 });
+      }
+    } else if (role !== "SUPER_ADMIN" && role !== "MIDDLE_ADMIN") {
+      return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
     }
 
     const rows = await prisma.socialOrder.findMany({

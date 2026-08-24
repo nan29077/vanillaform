@@ -727,6 +727,11 @@ model Order {
   pgProvider      String?
   pgTid           String?
   pgAuthData      String?           @db.Text
+  // PG 콜백 URL 위조 방지용 1회성 토큰(hex 64자).
+  // 결제 준비 시 crypto.randomBytes(32) 로 발급해 콜백 URL 쿼리에 실어 보내고,
+  // 콜백 수신 시 DB 값과 대조해 임의 orderId 로 남의 주문을 결제완료 처리하는 것을 막는다.
+  // (ONGI 는 HMAC 서명을 제공하지 않아 우리 쪽 토큰이 유일한 진위 근거)
+  pgCallbackToken String?           @db.VarChar(64)
   paidAt          DateTime?
   shippedAt       DateTime?
   deliveredAt     DateTime?

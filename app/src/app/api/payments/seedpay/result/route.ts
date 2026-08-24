@@ -85,18 +85,26 @@ export async function POST(request: Request) {
     return htmlRedirect(failRedirect(order?.id ?? null, resultMsg || "결제 인증 실패"));
   }
 
+  // 서명(signData) 검증 — 불일치는 위·변조이므로 **여기서 차단한다**.
+  // 예전에는 경고 로그만 남기고 그대로 승인 단계로 넘어가, 서명이 틀려도 결제가
+  // 완료 처리될 수 있었다.
+  // 주문 상태는 일부러 건드리지 않는다 — 위조 요청으로 남의 주문을 실패시키는
+  // 2차 공격을 막기 위해서다(미결제 주문은 cron/cleanup-pending 이 정리한다).
+  // TODO(PG 계약 후): signData 가 아예 없는 요청도 거부하도록 조인다.
+  //   지금은 계약 전이라 일부 응답에 signData 가 비어 올 가능성을 고려해 존재할 때만 검증한다.
   const expectedSign = buildSignVerifyHash(tid, mId, ediDate, amount, orderId);
   if (signData && signData !== expectedSign) {
-    console.warn("[seedpay/result] signData 불일치", { received: signData, expected: expectedSign });
+    console.warn("[seedpay/result] signData 불일치 — 차단", { received: signData, expected: expectedSign });
     await logPayment({
       orderId: order?.id ?? null,
       provider: "seedpay",
       stage: "result",
-      status: "warn",
-      message: "signData 불일치 (위·변조 의심)",
+      status: "fail",
+      message: "signData 불일치 (위·변조 의심) — 결제 처리 차단",
       pgTid: tid || null,
       payload: { received: signData, expected: expectedSign },
     });
+    return htmlRedirect(failRedirect(order?.id ?? null, "결제 검증에 실패했습니다."));
   }
 
   if (!order) {

@@ -36,7 +36,22 @@ NEXTAUTH_URL="http://localhost:3026"
 NEXT_PUBLIC_APP_URL="http://localhost:3026"
 NEXT_PUBLIC_APP_NAME="바닐라폼"
 EXTERNAL_INTEGRATIONS_ENABLED="false"
+
+# 방치된 PENDING 주문 정리 크론(/api/cron/cleanup-pending) 인증용 시크릿.
+# 비워두면 해당 엔드포인트가 503 으로 비활성화되어 외부에서 호출할 수 없다.
+# 운영에서는 반드시 임의의 긴 난수를 설정할 것.
+CRON_SECRET="your-cron-secret"
 ```
+
+> **AUTH_SECRET 참고** — 최고관리자 "임시 로그인"(impersonation) 기능은 `AUTH_SECRET`
+> (또는 `NEXTAUTH_SECRET`)이 설정된 경우에만 동작한다. 미설정 시 토큰 발급/검증이
+> 모두 실패하며 기능이 자동으로 비활성화된다.
+
+> **정리 크론 등록 예시**
+>
+> ```cron
+> */5 * * * * curl -s -H "Authorization: Bearer $CRON_SECRET" http://localhost:3026/api/cron/cleanup-pending
+> ```
 
 ### 3. 설치 및 실행
 

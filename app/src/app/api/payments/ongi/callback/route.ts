@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
@@ -11,14 +12,28 @@ import { notifyOrderPlacedToSeller } from "@/lib/alimtalkTriggers";
 
 export const dynamic = "force-dynamic";
 
+/** 타이밍 공격에 안전한 문자열 비교. 길이가 다르면 즉시 false. */
+function safeEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (ab.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ab, bb);
+}
+
 // ONGI 서버 → 가맹점 서버 통지(HTTP POST JSON).
 // 가이드: HTTP 2xx 를 최대한 빠르게 반환, 멱등 키는 payment_code, HMAC 서명 없음.
-// 따라서 (1) 우리 쪽 orderId 매핑(callback_url 쿼리), (2) 금액 교차 검증,
-// (3) Order 가 이미 COMPLETED 면 즉시 200 으로 종료한다.
+// 따라서 (1) 우리 쪽 orderId 매핑(callback_url 쿼리) + 콜백 토큰 검증,
+// (2) 금액 교차 검증, (3) Order 가 이미 COMPLETED 면 즉시 200 으로 종료한다.
 // ONGI 결제창은 가맹점으로 복귀하지 않으므로 모든 분기를 PaymentLog 에 저장한다.
+//
+// TODO(PG 계약 후): ONGI 가 제공하는 실제 서명/해시 검증(예: HMAC-SHA256 헤더)이
+//   확정되면 이 파일 상단에서 원문(rawBody) 기준 서명 검증을 먼저 수행하고,
+//   아래 콜백 토큰 검증은 보조 방어선으로 유지한다.
+//   또한 통지 IP 화이트리스트(ONGI 발신 IP 대역)도 함께 적용할 것.
 export async function POST(request: Request) {
   const url = new URL(request.url);
   const orderIdFromQuery = url.searchParams.get("orderId");
+  const callbackToken = url.searchParams.get("token");
 
   let payload: OngiCallbackPayload;
   let rawBody: string | null = null;
@@ -71,7 +86,27 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "ORDER_NOT_FOUND" });
   }
 
-  // 2) 멱등 — 이미 완료된 주문이면 추가 처리 없이 종료.
+  // 2) 콜백 토큰 검증 — prepare 가 발급해 callback_url 에 실어 보낸 난수와 대조한다.
+  //    ONGI 는 서명을 제공하지 않으므로, 이 토큰이 통지의 진위를 판정하는 유일한 근거다.
+  //    토큰이 없거나 불일치하면 어떤 상태 변경도 하지 않는다(위조 시도로 간주).
+  if (!order.pgCallbackToken || !callbackToken || !safeEqual(callbackToken, order.pgCallbackToken)) {
+    console.warn("[ongi/callback] 콜백 토큰 검증 실패", { orderId: order.id });
+    await logPayment({
+      orderId: order.id,
+      provider: "ongi",
+      stage: "callback",
+      status: "fail",
+      message: order.pgCallbackToken
+        ? "INVALID_CALLBACK_TOKEN — 콜백 토큰 불일치(위·변조 의심)"
+        : "MISSING_STORED_CALLBACK_TOKEN — 이 주문은 ONGI 결제 준비를 거치지 않았다",
+      pgTid: paymentCode,
+      payload: { orderIdFromQuery, body: payload },
+    });
+    // 재시도 폭주를 막기 위해 2xx 로 응답하되, 주문은 건드리지 않는다.
+    return NextResponse.json({ ok: false, error: "INVALID_CALLBACK_TOKEN" });
+  }
+
+  // 3) 멱등 — 이미 완료된 주문이면 추가 처리 없이 종료.
   if (order.paymentStatus === "COMPLETED") {
     await logPayment({
       orderId: order.id,
@@ -85,7 +120,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, idempotent: true });
   }
 
-  // 3) 실패 결과는 주문을 실패 처리 — 선점했던 재고·캠페인 카운터·커미션도 함께 되돌린다.
+  // 4) 실패 결과는 주문을 실패 처리 — 선점했던 재고·캠페인 카운터·커미션도 함께 되돌린다.
   if (!isOngiCallbackSuccess(payload)) {
     await voidPendingOrder(order.id, {
       pgProvider: "ongi",
@@ -104,7 +139,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true });
   }
 
-  // 4) 금액 교차 검증 — payment_amt 와 Order.finalAmount 비교.
+  // 5) 금액 교차 검증 — payment_amt 와 Order.finalAmount 비교.
   const paid = Number(payload.payment_amt ?? payload.pay_price ?? 0);
   const expected = Math.round(Number(order.finalAmount));
   if (!paid || paid !== expected) {
@@ -126,7 +161,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "AMOUNT_MISMATCH" });
   }
 
-  // 5) 정상 완료.
+  // 6) 정상 완료.
   await prisma.order.update({
     where: { id: order.id },
     data: {

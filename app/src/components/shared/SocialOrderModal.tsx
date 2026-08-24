@@ -50,15 +50,20 @@ export default function SocialOrderModal({ open, onClose, productId, sellerId, p
   }, [open, session]);
 
   useEffect(() => {
-    if (!open || !sellerId) return;
-    fetch(`/api/seller/bank-account?sellerId=${encodeURIComponent(sellerId)}`)
+    if (!open || !sellerId || !productId) return;
+    // productId 를 함께 보낸다 — 서버가 "이 셀러 샵의 상품"임을 확인한 경우에만
+    // 입금 계좌를 내려준다(계좌 전수 수집 방지). /api/seller/bank-account 주석 참고.
+    fetch(
+      `/api/seller/bank-account?sellerId=${encodeURIComponent(sellerId)}` +
+        `&productId=${encodeURIComponent(productId)}`,
+    )
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data && (data.bankName || data.bankAccount || data.bankHolder)) setBank(data);
         else setBank(null);
       })
       .catch(() => setBank(null));
-  }, [open, sellerId]);
+  }, [open, sellerId, productId]);
 
   useEffect(() => {
     if (!open) return;

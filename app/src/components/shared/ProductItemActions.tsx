@@ -203,7 +203,7 @@ export default function ProductItemActions({ productId, productName, mode, isAct
             <div className="px-2">
               {mode === "seller" ? (
                 <button
-                  onClick={() => { window.location.href = `/seller/products/edit/${productId}`; }}
+                  onClick={() => { window.location.href = `/seller/products/${productId}/edit`; }}
                   className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
                 >
                   <Icon name="Edit" size={14} /> 수정

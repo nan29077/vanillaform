@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { clampInt } from "@/lib/pagination";
 
 // GET /api/seller/reviews?page=1&limit=10
 export async function GET(req: NextRequest) {
@@ -15,8 +16,11 @@ export async function GET(req: NextRequest) {
   });
   if (!seller) return NextResponse.json({ error: "라이브 셀러 없음" }, { status: 404 });
 
-  const page = parseInt(req.nextUrl.searchParams.get("page") || "1");
-  const limit = parseInt(req.nextUrl.searchParams.get("limit") || "10");
+  // 페이지네이션 파라미터 정규화 — NaN/음수/과도한 limit 차단.
+  // (검증이 없으면 ?page=-5 로 skip 이 음수가 되어 Prisma 가 예외를 던지고,
+  //  ?limit=999999 로 테이블 전체를 한 번에 긁어가는 DoS 가 가능했다)
+  const page = clampInt(req.nextUrl.searchParams.get("page"), 1, 1, Number.MAX_SAFE_INTEGER);
+  const limit = clampInt(req.nextUrl.searchParams.get("limit"), 10, 1, 100);
   const skip = (page - 1) * limit;
 
   // 셀러 샵에 등록된 상품의 리뷰 조회

@@ -1194,7 +1194,7 @@ export default function LiveWatchPage() {
                     {cartItems.reduce((sum, item) => sum + (item.variant?.price ?? item.product.basePrice) * item.quantity, 0).toLocaleString()}원
                   </span>
                 </div>
-                <Link href="/my/cart" onClick={() => setShowCart(false)}
+                <Link href="/cart" onClick={() => setShowCart(false)}
                   className="w-full h-12 rounded-xl flex items-center justify-center text-white font-bold text-[14px] transition-opacity hover:opacity-90 gap-2"
                   style={{ backgroundColor: PRIMARY }}>
                   <ShoppingCart size={16} /> 장바구니로 이동

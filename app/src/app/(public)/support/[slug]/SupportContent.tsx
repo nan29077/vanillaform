@@ -1,4 +1,5 @@
 "use client";
+import { sanitizeHtml } from "@/lib/sanitize";
 
 import { Icon } from '@/components/shared/Icon';
 import { useRouter } from "next/navigation";
@@ -271,7 +272,7 @@ function DbContentBody({ content }: { content: string }) {
     <Card>
       <div
         className="text-[13px] text-gray-700 leading-relaxed whitespace-pre-line prose-sm"
-        dangerouslySetInnerHTML={{ __html: content }}
+        dangerouslySetInnerHTML={{ __html: sanitizeHtml(content) }}
       />
     </Card>
   );
