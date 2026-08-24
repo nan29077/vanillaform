@@ -29,6 +29,10 @@ const nextConfig = {
     "*.e2b.dev",
   ],
   poweredByHeader: false,
+  // output file tracing 비활성화.
+  // @vercel/nft 가 Prisma 런타임 추적 중 Windows 레거시 정션(Application Data 등)에서 EPERM 발생.
+  // standalone 미사용 환경이므로 트레이싱 결과물이 필요 없다.
+  outputFileTracing: false,
   compress: true,
   reactStrictMode: false,
   experimental: {
