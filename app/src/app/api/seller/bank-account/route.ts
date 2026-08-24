@@ -27,43 +27,53 @@ export async function GET(request: Request) {
   const userId = session?.user?.id;
 
   if (sellerId) {
-    const seller = await prisma.sellerProfile.findUnique({
-      where: { id: sellerId },
-      select: {
-        id: true,
-        userId: true,
-        isApproved: true,
-        user: { select: { bankName: true, bankAccount: true, bankHolder: true } },
-      },
-    });
-    if (!seller) {
-      return NextResponse.json({ error: "셀러를 찾을 수 없습니다." }, { status: 404 });
-    }
-
     const isAdmin = role === "SUPER_ADMIN" || role === "MIDDLE_ADMIN";
-    const isOwner = !!userId && seller.userId === userId;
+
+    // 소유 여부는 "요청자 자신의 셀러 프로필"만 읽어서 판정한다.
+    // 대상 셀러를 먼저 조회하면 존재 여부(404 vs 403)가 익명 요청에도 새어나간다.
+    let isOwner = false;
+    if (!isAdmin && userId && role === "SELLER") {
+      const me = await prisma.sellerProfile.findUnique({
+        where: { userId },
+        select: { id: true },
+      });
+      isOwner = !!me && me.id === sellerId;
+    }
 
     if (!isAdmin && !isOwner) {
       // 소셜주문서 입금 안내 경로만 예외로 허용한다.
+      // (승인된 셀러 + 그 셀러 샵에 실제로 있는 상품일 때만)
       if (!productId) {
         return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
       }
-      if (!seller.isApproved) {
+      const target = await prisma.sellerProfile.findUnique({
+        where: { id: sellerId },
+        select: { id: true, isApproved: true },
+      });
+      if (!target || !target.isApproved) {
         return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
       }
       const inShop = await prisma.sellerShopProduct.findFirst({
-        where: { sellerId: seller.id, productId, isActive: true, isApproved: true },
+        where: { sellerId: target.id, productId, isActive: true, isApproved: true },
         select: { id: true },
       });
       const ownProduct = inShop
         ? null
         : await prisma.product.findFirst({
-            where: { id: productId, sellerId: seller.id },
+            where: { id: productId, sellerId: target.id },
             select: { id: true },
           });
       if (!inShop && !ownProduct) {
         return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
       }
+    }
+
+    const seller = await prisma.sellerProfile.findUnique({
+      where: { id: sellerId },
+      select: { user: { select: { bankName: true, bankAccount: true, bankHolder: true } } },
+    });
+    if (!seller) {
+      return NextResponse.json({ error: "셀러를 찾을 수 없습니다." }, { status: 404 });
     }
 
     return NextResponse.json({
