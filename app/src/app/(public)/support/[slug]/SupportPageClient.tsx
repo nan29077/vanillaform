@@ -1,4 +1,5 @@
 "use client";
+import { sanitizeHtml } from "@/lib/sanitize";
 
 import { Icon } from '@/components/shared/Icon';
 import { useRouter } from "next/navigation";
@@ -138,7 +139,7 @@ export default function SupportPageClient({
     return (
       <div
         className="text-[13px] text-gray-700 leading-relaxed"
-        dangerouslySetInnerHTML={{ __html: parsed.text ?? content }}
+        dangerouslySetInnerHTML={{ __html: sanitizeHtml(parsed.text ?? content) }}
       />
     );
   }

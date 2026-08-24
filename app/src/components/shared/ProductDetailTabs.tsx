@@ -1,6 +1,7 @@
 "use client";
 
 import { Icon } from '@/components/shared/Icon';
+import { sanitizeHtml } from "@/lib/sanitize";
 import { useState, useEffect } from "react";
 import {Scale} from 'lucide-react';
 
@@ -244,7 +245,7 @@ export default function ProductDetailTabs({
               <div className="px-4 pb-2">
                 <div
                   className="product-detail-content prose prose-sm max-w-none text-gray-700"
-                  dangerouslySetInnerHTML={{ __html: detailContent }}
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(detailContent) }}
                 />
               </div>
             )}
@@ -260,7 +261,7 @@ export default function ProductDetailTabs({
         {activeTab === "review" && (
           <div className="animate-fade-in px-4 py-5">
             {reviewCount > 0 ? (
-              <div dangerouslySetInnerHTML={{ __html: reviewsHtml }} />
+              <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(reviewsHtml) }} />
             ) : (
               <div className="py-10 text-center">
                 <p className="text-sm text-gray-400">아직 리뷰가 없습니다.</p>

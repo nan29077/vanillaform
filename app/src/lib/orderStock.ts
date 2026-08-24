@@ -171,6 +171,14 @@ export async function voidPendingOrder(
       }
     }
 
+    // 중간관리자 마진 롤백.
+    // 주문 생성 시 middleAdminCommission 을 PENDING 으로 적립하므로, 결제가 실패한
+    // 주문의 적립분도 함께 지워야 한다. 남겨두면 결제되지 않은 주문의 마진이
+    // 중간관리자 정산에 그대로 잡힌다.
+    await tx.middleAdminCommission.deleteMany({
+      where: { orderId, status: "PENDING" },
+    });
+
     // 멘토 커미션 롤백
     const mentorCommissions = await (tx as any).mentorCommission.findMany({
       where: { orderId, status: "PENDING" },

@@ -13,10 +13,59 @@ export const dynamic = "force-dynamic";
 // Explicitly increase body parser size for this API route
 export const maxDuration = 60; // seconds
 
-// Detect image type from file header (magic bytes)
-function detectImageFromBytes(buffer: Buffer): string | null {
+// ─────────────────────────────────────────────────────────────
+// 업로드 정책
+//
+//  1) 확장자는 **매직바이트로만** 결정한다. 파일명/MIME 은 클라이언트가 마음대로
+//     보낼 수 있으므로 신뢰하지 않는다. 판별에 실패하면 업로드를 거부한다.
+//     (예전엔 판별 실패 시 파일명 확장자를 그대로 썼기 때문에 .html/.svg/.js 같은
+//      실행 가능한 확장자로 저장돼 저장형 XSS 로 이어질 수 있었다)
+//  2) SVG 는 임의의 <script> 를 품을 수 있어 원천 차단한다.
+//  3) 파일 크기 상한 — 이미지 10MB, 그 외(PDF·동영상 등) 5MB.
+// ─────────────────────────────────────────────────────────────
+
+/** 이미지 파일 크기 상한 (10MB) */
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+/** 이미지 외(PDF·동영상 등) 크기 상한 (5MB) */
+const MAX_OTHER_BYTES = 5 * 1024 * 1024;
+
+/** 저장을 허용하는 확장자 화이트리스트 — 이미지 */
+const ALLOWED_IMAGE_EXTS = new Set([
+  "jpg",
+  "png",
+  "gif",
+  "webp",
+  "bmp",
+  "tiff",
+  "avif",
+  "heic",
+  "ico",
+  "psd",
+]);
+
+/** 저장을 허용하는 확장자 화이트리스트 — 그 외 */
+const ALLOWED_OTHER_EXTS = new Set(["pdf", "mp4", "mov", "webm"]);
+
+function isImageExt(ext: string): boolean {
+  return ALLOWED_IMAGE_EXTS.has(ext);
+}
+
+function isAllowedExt(ext: string): boolean {
+  return ALLOWED_IMAGE_EXTS.has(ext) || ALLOWED_OTHER_EXTS.has(ext);
+}
+
+function formatMB(bytes: number): string {
+  return `${Math.round((bytes / (1024 * 1024)) * 10) / 10}MB`;
+}
+
+/**
+ * 파일 헤더(매직바이트)로 실제 형식을 판별한다.
+ * 판별 불가 → null (호출부에서 업로드 거부)
+ * SVG 는 판별은 하되 "svg" 로 돌려주고, 호출부가 명시적으로 거부한다.
+ */
+function detectFileFromBytes(buffer: Buffer): string | null {
   if (buffer.length < 4) return null;
-  
+
   // JPEG: FF D8 FF
   if (buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF) return "jpg";
   // PNG: 89 50 4E 47
@@ -26,41 +75,40 @@ function detectImageFromBytes(buffer: Buffer): string | null {
   // WebP: 52 49 46 46 ... 57 45 42 50
   if (buffer.length >= 12 && buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x46 &&
       buffer[8] === 0x57 && buffer[9] === 0x45 && buffer[10] === 0x42 && buffer[11] === 0x50) return "webp";
+  // ISO BMFF 계열 — ICO/BMP 시그니처보다 **먼저** 판별해야 한다.
+  // (박스 크기가 0x00000100 인 mp4 는 앞 4바이트가 ICO 시그니처 00 00 01 00 과 같다)
+  // ISO BMFF — offset 4 에 "ftyp" 박스. major brand 로 이미지/동영상을 가른다.
+  if (buffer.length >= 12 && buffer[4] === 0x66 && buffer[5] === 0x74 && buffer[6] === 0x79 && buffer[7] === 0x70) {
+    const brand = buffer.slice(8, 12).toString("ascii").trim().toLowerCase();
+    if (brand === "avif" || brand === "avis") return "avif";
+    if (["heic", "heix", "hevc", "hevx", "mif1", "msf1", "heim", "heis"].includes(brand)) return "heic";
+    if (brand === "qt") return "mov";
+    if (["isom", "iso2", "iso4", "iso5", "iso6", "mp41", "mp42", "mmp4", "avc1", "dash", "m4v", "m4a", "3gp4", "3gp5", "3g2a"].includes(brand)) {
+      return "mp4";
+    }
+    // 알 수 없는 브랜드는 거부 (판별 실패로 취급)
+    return null;
+  }
   // BMP: 42 4D
   if (buffer[0] === 0x42 && buffer[1] === 0x4D) return "bmp";
-  // TIFF: 49 49 2A 00 or 4D 4D 00 2A
+  // ICO: 00 00 01 00  (파비콘 업로드용)
+  if (buffer[0] === 0x00 && buffer[1] === 0x00 && buffer[2] === 0x01 && buffer[3] === 0x00) return "ico";
+  // PSD: 38 42 50 53 ("8BPS")
+  if (buffer[0] === 0x38 && buffer[1] === 0x42 && buffer[2] === 0x50 && buffer[3] === 0x53) return "psd";
+  // TIFF (및 TIFF 기반 RAW: CR2/NEF/ARW/DNG): 49 49 2A 00 or 4D 4D 00 2A
   if ((buffer[0] === 0x49 && buffer[1] === 0x49 && buffer[2] === 0x2A && buffer[3] === 0x00) ||
       (buffer[0] === 0x4D && buffer[1] === 0x4D && buffer[2] === 0x00 && buffer[3] === 0x2A)) return "tiff";
-  // HEIF/HEIC/AVIF: ftyp box at offset 4
-  if (buffer.length >= 12 && buffer[4] === 0x66 && buffer[5] === 0x74 && buffer[6] === 0x79 && buffer[7] === 0x70) {
-    const brand = buffer.slice(8, 12).toString('ascii');
-    if (brand === 'avif' || brand === 'avis') return "avif";
-    return "heic";
-  }
-  // SVG: starts with < (XML-like)
-  if (buffer[0] === 0x3C) {
-    const head = buffer.slice(0, Math.min(256, buffer.length)).toString('utf8').toLowerCase();
-    if (head.includes('<svg')) return "svg";
-  }
-  // PDF
+  // Matroska/WebM: 1A 45 DF A3
+  if (buffer[0] === 0x1A && buffer[1] === 0x45 && buffer[2] === 0xDF && buffer[3] === 0xA3) return "webm";
+  // PDF: 25 50 44 46
   if (buffer[0] === 0x25 && buffer[1] === 0x50 && buffer[2] === 0x44 && buffer[3] === 0x46) return "pdf";
-  
-  return null;
-}
-
-// Fallback: guess extension from file name or MIME type
-function guessExtension(fileName: string, mimeType: string): string {
-  const nameExt = (fileName || "").split(".").pop()?.toLowerCase() || "";
-  const allExts = new Set(["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg", "ico", "tiff", "tif", "avif", "heic", "heif", "raw", "cr2", "nef", "arw", "dng", "raf", "orf", "rw2", "pef", "sr2", "jfif", "psd", "ai", "eps", "pdf"]);
-  if (allExts.has(nameExt)) return nameExt === "jpeg" ? "jpg" : nameExt;
-  // Accept any extension from filename
-  if (nameExt && nameExt.length <= 10) return nameExt;
-  if (mimeType) {
-    const mimeExt = mimeType.split("/").pop()?.toLowerCase() || "";
-    if (mimeExt === "jpeg") return "jpg";
-    if (mimeExt && mimeExt.length <= 10) return mimeExt;
+  // SVG (XML) — 허용하지 않지만, "알 수 없음"이 아니라 "SVG 라서 거부"라고 안내하기 위해 판별한다.
+  if (buffer[0] === 0x3C || (buffer[0] === 0xEF && buffer[1] === 0xBB && buffer[2] === 0xBF)) {
+    const head = buffer.slice(0, Math.min(512, buffer.length)).toString("utf8").toLowerCase();
+    if (head.includes("<svg")) return "svg";
   }
-  return "jpg"; // safe default
+
+  return null;
 }
 
 // S3 설정 (환경변수가 있을 때만 활성화)
@@ -97,6 +145,24 @@ async function uploadToS3(buffer: Buffer, uniqueName: string, mimeType: string):
   return `https://${S3_BUCKET}.s3.${S3_REGION}.amazonaws.com/${key}`;
 }
 
+/** 확장자 → 저장 시 사용할 Content-Type */
+const MIME_MAP: Record<string, string> = {
+  jpg: "image/jpeg",
+  png: "image/png",
+  gif: "image/gif",
+  webp: "image/webp",
+  bmp: "image/bmp",
+  tiff: "image/tiff",
+  avif: "image/avif",
+  heic: "image/heic",
+  ico: "image/x-icon",
+  psd: "image/vnd.adobe.photoshop",
+  pdf: "application/pdf",
+  mp4: "video/mp4",
+  mov: "video/quicktime",
+  webm: "video/webm",
+};
+
 export async function POST(req: NextRequest) {
   try {
     const session = await auth();
@@ -126,10 +192,10 @@ export async function POST(req: NextRequest) {
     } catch (parseError: any) {
       console.error("[Upload] FormData parsing FAILED:", parseError?.message || parseError);
       console.error("[Upload] This is likely a body size limit issue or malformed request");
-      
-      return NextResponse.json({ 
+
+      return NextResponse.json({
         error: "파일 전송 오류가 발생했습니다. 파일 크기를 줄이거나 한 장씩 업로드해 주세요.",
-        debug: parseError?.message 
+        debug: parseError?.message
       }, { status: 400 });
     }
 
@@ -163,6 +229,12 @@ export async function POST(req: NextRequest) {
       processedNames.add(fileKey);
 
       try {
+        // 본문을 읽기 전에 선언된 크기로 1차 차단 (가장 큰 상한 기준).
+        if (file.size > MAX_IMAGE_BYTES) {
+          errors.push(`${file.name}: 파일이 너무 큽니다 (최대 ${formatMB(MAX_IMAGE_BYTES)})`);
+          continue;
+        }
+
         const bytes = await file.arrayBuffer();
         const buffer = Buffer.from(bytes);
         const actualSize = buffer.length;
@@ -172,20 +244,34 @@ export async function POST(req: NextRequest) {
           continue;
         }
 
-        // Detect image type from magic bytes (primary method)
-        let ext = detectImageFromBytes(buffer);
-        if (!ext) ext = guessExtension(file.name, file.type);
+        // 형식 판별 — 매직바이트만 신뢰한다.
+        const ext = detectFileFromBytes(buffer);
+
+        if (ext === "svg") {
+          errors.push(`${file.name}: SVG 파일은 업로드할 수 없습니다.`);
+          continue;
+        }
+        if (!ext) {
+          errors.push(`${file.name}: 지원하지 않거나 손상된 파일 형식입니다.`);
+          continue;
+        }
+        if (!isAllowedExt(ext)) {
+          errors.push(`${file.name}: 허용되지 않는 파일 형식입니다. (${ext})`);
+          continue;
+        }
+
+        // 형식별 크기 상한 재검사 (이미지 10MB / 그 외 5MB)
+        const limit = isImageExt(ext) ? MAX_IMAGE_BYTES : MAX_OTHER_BYTES;
+        if (actualSize > limit) {
+          errors.push(`${file.name}: 파일이 너무 큽니다 (최대 ${formatMB(limit)})`);
+          continue;
+        }
 
         const uniqueName = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${ext}`;
+        const contentType = MIME_MAP[ext] || "application/octet-stream";
 
         if (useS3) {
           // ✅ S3 업로드 (영구 저장 — 배포 재시작 시 소실 없음)
-          const mimeMap: Record<string, string> = {
-            jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png",
-            gif: "image/gif", webp: "image/webp", svg: "image/svg+xml",
-            avif: "image/avif", heic: "image/heic",
-          };
-          const contentType = mimeMap[ext] || file.type || "application/octet-stream";
           const url = await uploadToS3(buffer, uniqueName, contentType);
           urls.push(url);
         } else {
@@ -202,7 +288,7 @@ export async function POST(req: NextRequest) {
 
     if (urls.length === 0) {
       return NextResponse.json(
-        { error: "이미지를 저장할 수 없습니다. 다시 시도해 주세요.", errors },
+        { error: errors[0] || "이미지를 저장할 수 없습니다. 다시 시도해 주세요.", errors },
         { status: 400 }
       );
     }

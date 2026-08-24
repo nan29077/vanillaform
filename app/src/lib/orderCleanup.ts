@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { releaseOrderStockInTx } from "@/lib/orderStock";
-import type { Prisma } from "@prisma/client";
+// 이 프로젝트의 Prisma Client 는 커스텀 출력 경로(src/generated/prisma)로 생성된다.
+// "@prisma/client" 는 타입이 비어 있는 스텁이라 여기서 쓰면 안 된다(orderStock.ts 와 동일).
+import type { Prisma } from "@/generated/prisma";
 
 // 주문관리 목록(셀러·브랜드·관리자)에 노출할 주문의 공통 필터.
 // - PENDING(결제 진행 중·미결제) 제외

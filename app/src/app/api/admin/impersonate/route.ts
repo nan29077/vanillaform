@@ -26,5 +26,12 @@ export async function POST(req: NextRequest) {
   }
 
   const token = signImpersonationToken(target.id);
+  if (!token) {
+    // AUTH_SECRET 미설정 환경 — 임시 로그인 기능 비활성 (lib/impersonation.ts 주석 참고)
+    return NextResponse.json(
+      { error: "임시 로그인 기능이 비활성화되어 있습니다. (AUTH_SECRET 미설정)" },
+      { status: 503 },
+    );
+  }
   return NextResponse.json({ token, role: target.role });
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { Icon } from '@/components/shared/Icon';
+import { sanitizeHtml } from "@/lib/sanitize";
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { Loader2, Bold, Italic, Heading, List, Plus, X, Save} from 'lucide-react';
@@ -427,7 +428,7 @@ export default function ProductEditForm({ backHref, mode = "admin" }: Props) {
             </div>
             {showPreview ? (
               <div className="border border-gray-200 rounded-b-lg p-4 min-h-[200px] bg-white">
-                {form.detailContent ? <div className="prose prose-sm max-w-none text-sm" dangerouslySetInnerHTML={{ __html: form.detailContent }} /> : <p className="text-xs text-gray-400 text-center mt-10">미리보기 없음</p>}
+                {form.detailContent ? <div className="prose prose-sm max-w-none text-sm" dangerouslySetInnerHTML={{ __html: sanitizeHtml(form.detailContent) }} /> : <p className="text-xs text-gray-400 text-center mt-10">미리보기 없음</p>}
               </div>
             ) : (
               <textarea ref={detailRef} className="input-field h-52 resize-y font-mono text-xs rounded-t-none" placeholder="HTML 상세 정보를 입력하세요..." value={form.detailContent} onChange={e => setForm({ ...form, detailContent: e.target.value })} />

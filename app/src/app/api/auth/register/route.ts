@@ -77,6 +77,20 @@ export async function POST(request: NextRequest) {
       newSellerReferralCode = await generateUniqueSellerReferralCode(prisma);
     }
 
+    // 셀러 샵 slug — 이메일 앞부분을 그대로 쓰면 다른 도메인의 동명 계정
+    // (예: kim@a.com / kim@b.com)이 같은 slug 를 만들어 unique 제약에 걸리고
+    // 가입 전체가 500 으로 실패했다. my/apply-seller 와 동일하게 중복 시 숫자 suffix 를 붙인다.
+    let sellerSlug: string | undefined;
+    if (userRole === "SELLER") {
+      const base =
+        emailTrimmed.split("@")[0].toLowerCase().replace(/[^a-z0-9]/g, "-") || "seller";
+      sellerSlug = base;
+      let n = 1;
+      while (await prisma.sellerProfile.findUnique({ where: { slug: sellerSlug } })) {
+        sellerSlug = `${base}-${n++}`;
+      }
+    }
+
     // 1) User 생성
     const user = await (prisma as any).user.create({
       data: {
@@ -103,7 +117,7 @@ export async function POST(request: NextRequest) {
         ...(userRole === "SELLER" && {
           sellerProfile: {
             create: {
-              slug: emailTrimmed.split("@")[0].toLowerCase().replace(/[^a-z0-9]/g, "-"),
+              slug: sellerSlug,
               shopName: `${nameTrimmed}의 샵`,
               isApproved: false,
             },
