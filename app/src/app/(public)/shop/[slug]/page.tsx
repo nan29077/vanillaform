@@ -13,7 +13,7 @@ import SellerShopBottomNav from "@/components/shared/SellerShopBottomNav";
 import ShopContextSync from "@/components/shared/ShopContextSync";
 import ShopAddressPopup from "@/components/shared/ShopAddressPopup";
 import { Users, ShoppingBag, Star, MapPin, MessageCircle, Radio, Eye, Video, Sparkles } from "lucide-react";
-import { getFeatureFlags } from "@/lib/settings";
+import { getFeatureFlags, getFooterSettings } from "@/lib/settings";
 import { getSellerFanCount } from "@/lib/sellerFans";
 import { DEFAULT_SHOP_BANNER, DEFAULT_PRODUCT_IMAGE, pickSellerAvatar } from "@/lib/defaults";
 import { OnAirBadge } from "@/components/shared/LiveBadge";
@@ -27,6 +27,8 @@ export default async function SellerShopPage({
   params: Promise<{ slug: string }> | { slug: string };
 }) {
   const { groupBuy: FEATURE_GROUP_BUY, liveCommerce: FEATURE_LIVE_COMMERCE, referral: FEATURE_REFERRAL } = await getFeatureFlags();
+  // 셀러샵 하단 통신판매중개자 고지에 사용할 운영사 정보
+  const footerSettings = await getFooterSettings();
   const resolvedParams = await Promise.resolve(params);
   const seller = await prisma.sellerProfile.findUnique({
     where: { slug: resolvedParams.slug },
@@ -525,6 +527,7 @@ export default async function SellerShopPage({
           businessAddress: seller.businessAddress,
           businessCategory: seller.businessCategory,
         }}
+        footerSettings={footerSettings}
       />
 
       {/* 셀러샵 전용 하단 네비 높이만큼 여백 */}

@@ -2,6 +2,7 @@
 
 import { Icon } from '@/components/shared/Icon';
 import { useState, useEffect } from "react";
+import { FOOTER_DEFAULTS, type FooterSettings } from "@/lib/settings";
 ;
 
 interface SellerShopFooterProps {
@@ -14,9 +15,11 @@ interface SellerShopFooterProps {
     businessAddress: string | null;
     businessCategory: string | null;
   };
+  /** 통신판매중개자(운영사) 정보. 미전달 시 코드 기본값을 사용한다. */
+  footerSettings?: FooterSettings;
 }
 
-export default function SellerShopFooter({ sellerInfo }: SellerShopFooterProps) {
+export default function SellerShopFooter({ sellerInfo, footerSettings }: SellerShopFooterProps) {
   const [open, setOpen] = useState(false);
   const [usageOpen, setUsageOpen] = useState(false);
   const [usagePolicy, setUsagePolicy] = useState<string | null>(null);
@@ -32,6 +35,9 @@ export default function SellerShopFooter({ sellerInfo }: SellerShopFooterProps) 
   }, []);
 
   const isBusiness = sellerInfo.businessType === "business";
+
+  // 통신판매중개자(운영사) 정보 — 관리자 설정값이 있으면 우선, 없으면 코드 기본값
+  const platform = footerSettings ?? FOOTER_DEFAULTS;
 
   // 표시할 셀러 사업자 정보 행 (값이 있는 항목만)
   const rows: { label: string; value: string }[] = [
@@ -92,11 +98,11 @@ export default function SellerShopFooter({ sellerInfo }: SellerShopFooterProps) 
               </p>
               <div className="mt-3 pt-3 border-t border-gray-50 space-y-0.5 text-[10px] text-gray-400 leading-relaxed">
                 <p className="font-semibold text-gray-500 mb-1">통신판매중개자 정보</p>
-                <p><span className="text-gray-400">운영사</span> 바닐라폼 · 사업자 정보 준비 중</p>
-                <p><span className="text-gray-400">사업자등록번호</span> 662-86-02270</p>
-                <p><span className="text-gray-400">통신판매신고번호</span> 2022-고양일산서-0400</p>
-                <p><span className="text-gray-400">대표번호</span> 070-4158-2540</p>
-                <p><span className="text-gray-400">주소</span> 경기도 고양시 일산서구 킨텍스로 240, 2501호</p>
+                <p><span className="text-gray-400">법인명</span> {platform.companyName}</p>
+                <p><span className="text-gray-400">사업자등록</span> {platform.bizNum}</p>
+                <p><span className="text-gray-400">대표자</span> {platform.ceoName}</p>
+                <p><span className="text-gray-400">메일</span> {platform.email}</p>
+                <p><span className="text-gray-400">고객센터</span> {platform.phone}</p>
               </div>
             </div>
           )}
