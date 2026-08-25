@@ -103,20 +103,19 @@ export default function Footer({
           <div className="space-y-2 text-[10px] text-gray-500 leading-relaxed">
             <div className="space-y-0.5">
               <p>
-                <span className="text-gray-400">상호</span> {footer.companyName}
-                <span className="mx-1.5 text-gray-700">|</span>
-                <span className="text-gray-400">대표</span> {footer.ceoName}
+                <span className="text-gray-400">법인명</span> {footer.companyName}
               </p>
               <p>
-                <span className="text-gray-400">사업자등록번호</span> {footer.bizNum}
-                <span className="mx-1.5 text-gray-700">|</span>
-                <span className="text-gray-400">통신판매신고번호</span> {footer.mailOrderNum}
+                <span className="text-gray-400">사업자등록</span> {footer.bizNum}
               </p>
               <p>
-                <span className="text-gray-400">대표번호</span> {footer.phone}
+                <span className="text-gray-400">대표자</span> {footer.ceoName}
               </p>
               <p>
-                <span className="text-gray-400">주소</span> {footer.address}
+                <span className="text-gray-400">메일</span> {footer.email}
+              </p>
+              <p>
+                <span className="text-gray-400">고객센터</span> {footer.phone}
               </p>
             </div>
             <div className="flex flex-col items-start gap-2 pt-2 border-t border-gray-900">

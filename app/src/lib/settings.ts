@@ -34,6 +34,7 @@ export const FOOTER_CEO_NAME_KEY = "footer.ceoName";
 export const FOOTER_BIZ_NUM_KEY = "footer.bizNum";
 export const FOOTER_MAIL_ORDER_NUM_KEY = "footer.mailOrderNum";
 export const FOOTER_PHONE_KEY = "footer.phone";
+export const FOOTER_EMAIL_KEY = "footer.email";
 export const FOOTER_ADDRESS_KEY = "footer.address";
 export const FOOTER_COPYRIGHT_KEY = "footer.copyright";
 
@@ -43,16 +44,18 @@ export type FooterSettings = {
   bizNum: string;
   mailOrderNum: string;
   phone: string;
+  email: string;
   address: string;
   copyright: string;
 };
 
 export const FOOTER_DEFAULTS: FooterSettings = {
-  companyName: "바닐라폼",
-  ceoName: "",
-  bizNum: "",
+  companyName: "주식회사 피디에이치솔루션",
+  ceoName: "박동훈",
+  bizNum: "796-88-03580",
   mailOrderNum: "",
-  phone: "",
+  phone: "070-8065-5946",
+  email: "pdhdev@naver.com",
   address: "",
   copyright: "2026 VanillaForm. All rights reserved.",
 };
@@ -171,13 +174,15 @@ export async function getSocialLinks(): Promise<import("@/lib/featureFlags").Soc
 export async function getFooterSettings(): Promise<FooterSettings> {
   const map = await getSettingsMap();
   return {
-    companyName: map[FOOTER_COMPANY_NAME_KEY] ?? FOOTER_DEFAULTS.companyName,
-    ceoName: map[FOOTER_CEO_NAME_KEY] ?? FOOTER_DEFAULTS.ceoName,
-    bizNum: map[FOOTER_BIZ_NUM_KEY] ?? FOOTER_DEFAULTS.bizNum,
+    // 값이 비어 있으면 코드 기본값(회사 정보)으로 대체한다.
+    companyName: map[FOOTER_COMPANY_NAME_KEY] || FOOTER_DEFAULTS.companyName,
+    ceoName: map[FOOTER_CEO_NAME_KEY] || FOOTER_DEFAULTS.ceoName,
+    bizNum: map[FOOTER_BIZ_NUM_KEY] || FOOTER_DEFAULTS.bizNum,
     mailOrderNum: map[FOOTER_MAIL_ORDER_NUM_KEY] ?? FOOTER_DEFAULTS.mailOrderNum,
-    phone: map[FOOTER_PHONE_KEY] ?? FOOTER_DEFAULTS.phone,
+    phone: map[FOOTER_PHONE_KEY] || FOOTER_DEFAULTS.phone,
+    email: map[FOOTER_EMAIL_KEY] || FOOTER_DEFAULTS.email,
     address: map[FOOTER_ADDRESS_KEY] ?? FOOTER_DEFAULTS.address,
-    copyright: map[FOOTER_COPYRIGHT_KEY] ?? FOOTER_DEFAULTS.copyright,
+    copyright: map[FOOTER_COPYRIGHT_KEY] || FOOTER_DEFAULTS.copyright,
   };
 }
 

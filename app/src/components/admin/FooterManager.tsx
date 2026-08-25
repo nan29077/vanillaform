@@ -38,13 +38,16 @@ export default function FooterManager({ initialSettings }: { initialSettings: Fo
     }
   };
 
+  // 메인 푸터 노출 항목: 법인명 · 사업자등록 · 대표자 · 메일 · 고객센터
+  // 통신판매신고번호 · 주소는 로그인/회원가입 화면 하단 사업자정보에만 사용된다.
   const fields: { key: keyof FooterSettings; label: string; placeholder: string }[] = [
-    { key: "companyName", label: "상호", placeholder: "바닐라폼 운영사" },
-    { key: "ceoName", label: "대표자명", placeholder: "바닐라폼 운영사 정보 입력" },
-    { key: "bizNum", label: "사업자등록번호", placeholder: "바닐라폼 사업자 정보 입력" },
-    { key: "mailOrderNum", label: "통신판매신고번호", placeholder: "바닐라폼 신고 정보 입력" },
-    { key: "phone", label: "대표번호", placeholder: "바닐라폼 고객센터 번호 입력" },
-    { key: "address", label: "주소", placeholder: "바닐라폼 운영사 주소 입력" },
+    { key: "companyName", label: "법인명", placeholder: "주식회사 피디에이치솔루션" },
+    { key: "bizNum", label: "사업자등록", placeholder: "796-88-03580" },
+    { key: "ceoName", label: "대표자", placeholder: "박동훈" },
+    { key: "email", label: "메일", placeholder: "pdhdev@naver.com" },
+    { key: "phone", label: "고객센터", placeholder: "070-8065-5946" },
+    { key: "mailOrderNum", label: "통신판매신고번호 (메인 푸터 미노출)", placeholder: "미사용 시 비워두세요" },
+    { key: "address", label: "주소 (메인 푸터 미노출)", placeholder: "미사용 시 비워두세요" },
     { key: "copyright", label: "저작권 문구", placeholder: "2026 VanillaForm. All rights reserved." },
   ];
 
@@ -92,11 +95,12 @@ export default function FooterManager({ initialSettings }: { initialSettings: Fo
 
       {/* 미리보기 */}
       <div className="bg-gray-950 text-gray-400 rounded-xl p-4 text-[10px] space-y-1">
-        <p className="text-gray-300 font-medium text-[11px] mb-2">미리보기</p>
-        <p><span className="text-gray-500">상호</span> {form.companyName} <span className="mx-1 text-gray-700">|</span> <span className="text-gray-500">대표</span> {form.ceoName}</p>
-        <p><span className="text-gray-500">사업자등록번호</span> {form.bizNum} <span className="mx-1 text-gray-700">|</span> <span className="text-gray-500">통신판매신고번호</span> {form.mailOrderNum}</p>
-        <p><span className="text-gray-500">대표번호</span> {form.phone}</p>
-        <p><span className="text-gray-500">주소</span> {form.address}</p>
+        <p className="text-gray-300 font-medium text-[11px] mb-2">미리보기 (메인 푸터)</p>
+        <p><span className="text-gray-500">법인명</span> {form.companyName}</p>
+        <p><span className="text-gray-500">사업자등록</span> {form.bizNum}</p>
+        <p><span className="text-gray-500">대표자</span> {form.ceoName}</p>
+        <p><span className="text-gray-500">메일</span> {form.email}</p>
+        <p><span className="text-gray-500">고객센터</span> {form.phone}</p>
         <p className="pt-1 border-t border-gray-800 mt-1">&copy; {form.copyright}</p>
       </div>
     </div>

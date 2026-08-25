@@ -8,6 +8,7 @@ import {
   FOOTER_BIZ_NUM_KEY,
   FOOTER_MAIL_ORDER_NUM_KEY,
   FOOTER_PHONE_KEY,
+  FOOTER_EMAIL_KEY,
   FOOTER_ADDRESS_KEY,
   FOOTER_COPYRIGHT_KEY,
 } from "@/lib/settings";
@@ -41,6 +42,7 @@ export async function PUT(req: NextRequest) {
       [FOOTER_BIZ_NUM_KEY]: String(body.bizNum ?? ""),
       [FOOTER_MAIL_ORDER_NUM_KEY]: String(body.mailOrderNum ?? ""),
       [FOOTER_PHONE_KEY]: String(body.phone ?? ""),
+      [FOOTER_EMAIL_KEY]: String(body.email ?? ""),
       [FOOTER_ADDRESS_KEY]: String(body.address ?? ""),
       [FOOTER_COPYRIGHT_KEY]: String(body.copyright ?? ""),
     });
