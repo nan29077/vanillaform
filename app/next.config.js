@@ -17,11 +17,13 @@ const nextConfig = {
   // 빌드 안전망 — 타입/린트 에러를 무시하지 않는다.
   // 무시 설정이 켜져 있으면 컴파일이 안 되는 코드가 그대로 배포되어,
   // 런타임에서야 터진다(권한 분기 오타 같은 것도 빌드가 잡아주지 못한다).
+  // 예외: 저사양 실서버(EC2 911MB)에서는 tsc 병행 시 OOM이 나므로
+  // 로컬에서 `npx tsc --noEmit` 통과 후 SKIP_BUILD_CHECKS=true로 빌드한다.
   typescript: {
-    ignoreBuildErrors: false,
+    ignoreBuildErrors: process.env.SKIP_BUILD_CHECKS === "true",
   },
   eslint: {
-    ignoreDuringBuilds: false,
+    ignoreDuringBuilds: process.env.SKIP_BUILD_CHECKS === "true",
   },
   allowedDevOrigins: [
     "*.sandbox.novita.ai",
