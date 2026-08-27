@@ -828,7 +828,7 @@ model CartItem {
   createdAt  DateTime        @default(now())
   updatedAt  DateTime        @updatedAt
 
-  @@unique([userId, productId, variantId, sellerId, campaignId])
+  @@unique([userId(length: 64), productId(length: 64), variantId(length: 64), sellerId(length: 64), campaignId(length: 64)])
   @@map("cart_items")
 }
 
