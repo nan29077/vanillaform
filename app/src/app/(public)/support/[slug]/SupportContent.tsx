@@ -16,40 +16,31 @@ const FAQ_ITEMS = [
   { q: "구매 후 리뷰는 어디서 작성하나요?", a: "마이페이지 > 주문내역에서 구매 확정된 주문을 선택해 리뷰를 작성할 수 있습니다. 배송 완료 후 일정 기간이 지나면 자동으로 구매 확정 처리되며, 사진과 함께 리뷰를 남기면 다른 구매자에게 큰 도움이 됩니다. 작성한 리뷰는 마이페이지에서 언제든 수정하거나 삭제할 수 있습니다." },
 ];
 
-function HoneycombBg() {
-  return (
-    <svg className="absolute inset-0 w-full h-full opacity-10" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <pattern id="honeycomb" x="0" y="0" width="56" height="48" patternUnits="userSpaceOnUse">
-          <polygon points="14,2 42,2 56,26 42,46 14,46 0,26" fill="none" stroke="#92400e" strokeWidth="1.2" />
-          <polygon points="14,2 42,2 56,26 42,46 14,46 0,26" fill="none" stroke="#92400e" strokeWidth="1.2" transform="translate(28,24)" />
-        </pattern>
-      </defs>
-      <rect width="100%" height="100%" fill="url(#honeycomb)" />
-    </svg>
-  );
-}
-
 function PageBanner({ title, subtitle, icon }: { title: string; subtitle: string; icon: React.ReactNode }) {
   return (
-    <div className="relative overflow-hidden bg-gradient-to-br from-amber-400 via-yellow-400 to-amber-500 px-5 py-8 text-center">
-      <HoneycombBg />
+    <div className="relative overflow-hidden bg-gradient-to-br from-brand-600 via-brand-500 to-brand-400 px-5 py-8 text-center">
+      {/* 자연 장식 */}
+      <svg className="absolute inset-0 w-full h-full opacity-10" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="15%" cy="20%" r="2.5" fill="white"/>
+        <circle cx="80%" cy="30%" r="2" fill="white"/>
+        <circle cx="40%" cy="75%" r="1.5" fill="white"/>
+        <circle cx="90%" cy="65%" r="2" fill="white"/>
+        <circle cx="25%" cy="80%" r="1" fill="white"/>
+      </svg>
       <div className="relative z-10">
         <div className="inline-flex items-center justify-center w-14 h-14 bg-white/25 rounded-2xl mb-3 backdrop-blur-sm">
           <span className="text-white">{icon}</span>
         </div>
         <h2 className="text-lg font-extrabold text-white drop-shadow-sm">{title}</h2>
-        <p className="text-amber-100 text-xs mt-1">{subtitle}</p>
+        <p className="text-brand-100 text-xs mt-1">{subtitle}</p>
       </div>
-      <span className="absolute right-5 top-3 text-5xl opacity-30 select-none"></span>
-      <span className="absolute left-5 bottom-3 text-2xl opacity-20 select-none">🍯</span>
     </div>
   );
 }
 
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`bg-white rounded-2xl shadow-sm border border-amber-100 p-5 ${className}`}>
+    <div className={`bg-white rounded-2xl shadow-sm border border-gray-100 p-5 ${className}`}>
       {children}
     </div>
   );
@@ -57,8 +48,8 @@ function Card({ children, className = "" }: { children: React.ReactNode; classNa
 
 function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
-    <h3 className="font-bold text-amber-800 mb-2 flex items-center gap-1.5">
-      <span className="inline-block w-1.5 h-4 bg-amber-400 rounded-full" />
+    <h3 className="font-bold text-brand-700 mb-2 flex items-center gap-1.5">
+      <span className="inline-block w-1.5 h-4 bg-brand-400 rounded-full" />
       {children}
     </h3>
   );
@@ -69,18 +60,18 @@ function FaqPage() {
   return (
     <div className="space-y-2">
       {FAQ_ITEMS.map((item, i) => (
-        <div key={i} className="border border-amber-100 rounded-xl overflow-hidden bg-white shadow-sm">
+        <div key={i} className="border border-brand-100 rounded-xl overflow-hidden bg-white shadow-sm">
           <button
-            className="w-full flex items-center justify-between px-4 py-3.5 text-left hover:bg-amber-50 transition-colors"
+            className="w-full flex items-center justify-between px-4 py-3.5 text-left hover:bg-brand-50 transition-colors"
             onClick={() => setOpen(open === i ? null : i)}
           >
             <span className="text-[13px] font-semibold text-gray-900 pr-4">{item.q}</span>
             {open === i
-              ? <Icon name="ChevronDown" size={16} className="text-amber-500 flex-shrink-0 rotate-180" />
-              : <Icon name="ChevronDown" size={16} className="text-amber-400 flex-shrink-0" />}
+              ? <Icon name="ChevronDown" size={16} className="text-brand-400 flex-shrink-0 rotate-180" />
+              : <Icon name="ChevronDown" size={16} className="text-brand-300 flex-shrink-0" />}
           </button>
           {open === i && (
-            <div className="px-4 pb-4 pt-1 bg-amber-50 border-t border-amber-100">
+            <div className="px-4 pb-4 pt-1 bg-brand-50 border-t border-brand-100">
               <p className="text-[13px] text-gray-600 leading-relaxed">{item.a}</p>
             </div>
           )}
@@ -100,26 +91,26 @@ function ContactPage() {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label className="block text-xs font-semibold text-amber-700 mb-1.5">이름</label>
+        <label className="block text-xs font-semibold text-brand-700 mb-1.5">이름</label>
         <input type="text" required value={form.name} onChange={e => setForm({...form, name: e.target.value})}
           placeholder="이름을 입력하세요"
-          className="w-full border border-amber-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 bg-amber-50/50" />
+          className="w-full border border-brand-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100 bg-brand-50/50" />
       </div>
       <div>
-        <label className="block text-xs font-semibold text-amber-700 mb-1.5">이메일</label>
+        <label className="block text-xs font-semibold text-brand-700 mb-1.5">이메일</label>
         <input type="email" required value={form.email} onChange={e => setForm({...form, email: e.target.value})}
           placeholder="email@example.com"
-          className="w-full border border-amber-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 bg-amber-50/50" />
+          className="w-full border border-brand-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100 bg-brand-50/50" />
       </div>
       <div>
-        <label className="block text-xs font-semibold text-amber-700 mb-1.5">문의 내용</label>
+        <label className="block text-xs font-semibold text-brand-700 mb-1.5">문의 내용</label>
         <textarea required value={form.message} onChange={e => setForm({...form, message: e.target.value})}
           placeholder="문의 내용을 입력하세요"
           rows={6}
-          className="w-full border border-amber-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 bg-amber-50/50 resize-none" />
+          className="w-full border border-brand-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100 bg-brand-50/50 resize-none" />
       </div>
       <button type="submit"
-        className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-amber-500 text-white text-sm font-bold hover:bg-amber-600 transition-colors shadow-md shadow-amber-200">
+        className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-brand-600 text-white text-sm font-bold hover:bg-brand-700 transition-colors shadow-md shadow-brand-200">
         <Icon name="Message" size={15} strokeWidth={1.5} />
         문의 접수하기
       </button>
@@ -156,7 +147,7 @@ function LegalDoc({ sections, notice }: { sections: LegalSection[]; notice: stri
           <p className="text-[13px] text-gray-600 leading-relaxed whitespace-pre-line">{s.body}</p>
         </Card>
       ))}
-      <p className="text-amber-500 text-xs text-center pt-1 pb-2">{notice}</p>
+      <p className="text-brand-400 text-xs text-center pt-1 pb-2">{notice}</p>
     </div>
   );
 }
@@ -572,7 +563,7 @@ const CONTENT: Record<string, { title: string; body: () => React.ReactNode }> = 
           <p className="text-[13px] text-gray-600 leading-relaxed">판매가 이루어질 때마다 설정된 커미션율에 따라 수익이 발생합니다. 캠페인 종료 후 구매 확정 시점에 정산됩니다.</p>
         </Card>
         <a href="/seller-apply"
-          className="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl bg-amber-500 text-white text-sm font-bold hover:bg-amber-600 transition-colors shadow-md shadow-amber-200 mt-2">
+          className="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl bg-brand-600 text-white text-sm font-bold hover:bg-brand-700 transition-colors shadow-md shadow-brand-200 mt-2">
           <Icon name="Store" size={15} strokeWidth={1.5} />
           라이브 셀러 신청하기
         </a>
@@ -641,9 +632,9 @@ export default function SupportContent({
 
   if (!hardcoded && !hasDb) {
     return (
-      <div className="max-w-[480px] mx-auto min-h-screen bg-amber-50 flex flex-col items-center justify-center px-4">
-        <Hexagon size={48} strokeWidth={1} className="fill-amber-100 text-amber-400 mb-4" />
-        <p className="text-amber-700 text-sm font-medium">페이지를 찾을 수 없습니다.</p>
+      <div className="max-w-[480px] mx-auto min-h-screen bg-brand-50 flex flex-col items-center justify-center px-4">
+        <Hexagon size={48} strokeWidth={1} className="fill-brand-100 text-brand-400 mb-4" />
+        <p className="text-brand-700 text-sm font-medium">페이지를 찾을 수 없습니다.</p>
       </div>
     );
   }
@@ -653,12 +644,12 @@ export default function SupportContent({
   const icon = meta?.icon ?? <Icon name="File" size={24} strokeWidth={1.5} />;
 
   return (
-    <div className="max-w-[480px] mx-auto min-h-screen bg-amber-50 pb-20">
+    <div className="max-w-[480px] mx-auto min-h-screen bg-brand-50 pb-20">
       {/* 상단 네비게이션 바 */}
-      <div className="sticky top-0 z-20 bg-white/90 backdrop-blur-sm border-b border-amber-100 px-4 py-3 flex items-center gap-2">
+      <div className="sticky top-0 z-20 bg-white/90 backdrop-blur-sm border-b border-brand-100 px-4 py-3 flex items-center gap-2">
         <button
           onClick={() => router.back()}
-          className="p-1.5 text-amber-600 hover:text-amber-800 transition-colors"
+          className="p-1.5 text-brand-600 hover:text-brand-800 transition-colors"
           aria-label="뒤로가기"
         >
           <Icon name="ArrowRight" size={20} strokeWidth={1.5} className="rotate-180" />
