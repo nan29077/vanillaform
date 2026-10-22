@@ -6,12 +6,13 @@ import { Role, type PrismaClient } from "../src/generated/prisma";
 // 앱 코드는 이 slug 로 지점을 찾는다 (src/lib/walletShared.ts 의 BRANCH_SELLER_SLUG 와 일치해야 함).
 export const BRANCH_SELLER = {
   email: "branch@vanillaform.local",
-  password: "password123",
+  // 실서버에서는 BRANCH_SELLER_PASSWORD 로 다른 비밀번호를 지정할 수 있다 (기본: 다른 테스트 계정과 동일)
+  password: process.env.BRANCH_SELLER_PASSWORD || "password123",
   name: "바닐라폼 지점",
   slug: "vanillaform-branch",
   shopName: "바닐라폼 지점",
   shopDescription: "바닐라폼 공식 테스트 지점입니다. 충전 결제(목업) 흐름 확인용 셀러입니다.",
-} as const;
+};
 
 /**
  * 바닐라폼 지점 셀러를 만든다. 이미 있으면 건드리지 않는다(멱등).

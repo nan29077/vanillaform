@@ -25,9 +25,10 @@ export function dashboardPathForRole(role?: string | null): string | null {
 // - 비로그인 → 로그인 페이지
 // - 비구매자(관리자/셀러/브랜드/중간관리자) → 즉시 역할 대시보드로 서버 리다이렉트
 //   (구매자 마이페이지 내용이 잠깐이라도 렌더되지 않도록, 데이터 조회 이전에 호출)
-export async function requireBuyerSession(): Promise<Session> {
+// - callbackUrl 을 주면 로그인 후 그 페이지로 돌아온다 (셀러샵 맥락이 있으면 셀러샵 우선)
+export async function requireBuyerSession(callbackUrl?: string): Promise<Session> {
   const session = await auth();
-  if (!session?.user) redirect(getShopAwareLoginPath());
+  if (!session?.user) redirect(getShopAwareLoginPath(callbackUrl));
   const dash = dashboardPathForRole(session.user.role);
   if (dash) redirect(dash);
   return session;

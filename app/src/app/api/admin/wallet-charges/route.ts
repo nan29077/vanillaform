@@ -16,7 +16,7 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const status = searchParams.get("status") || "PENDING";
-  const page = Math.max(1, Number.parseInt(searchParams.get("page") || "1", 10) || 1);
+  const page = Math.min(10_000, Math.max(1, Number.parseInt(searchParams.get("page") || "1", 10) || 1));
 
   const where =
     status === "PENDING"

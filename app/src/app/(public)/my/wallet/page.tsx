@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 // 충전 결제 (목업) — 가상계좌 입금 / 상품권 충전
 export default async function WalletPage() {
   // 비로그인 → 로그인, 비구매자 → 역할 대시보드
-  const session = await requireBuyerSession();
+  const session = await requireBuyerSession("/my/wallet");
 
   const flags = await getFeatureFlags();
   if (!flags.walletCharge) redirect("/my");

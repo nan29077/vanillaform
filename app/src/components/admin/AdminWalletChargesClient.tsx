@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/shared/Icon";
 import { cn } from "@/lib/utils";
 import {
@@ -53,23 +53,34 @@ export default function AdminWalletChargesClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  // 필터를 빠르게 바꿀 때 늦게 도착한 이전 응답이 화면을 덮어쓰지 않도록 요청 번호로 구분
+  const reqSeq = useRef(0);
 
   const load = useCallback(async () => {
+    const seq = ++reqSeq.current;
     setLoading(true);
     setError("");
     try {
       const res = await fetch(`/api/admin/wallet-charges?status=${filter}&page=${page}`, { cache: "no-store" });
       const json = await res.json().catch(() => ({}));
+      if (seq !== reqSeq.current) return;
       if (!res.ok) {
         setError(json.error || "목록을 불러오지 못했습니다.");
         setData(null);
       } else {
-        setData(json as ListResponse);
+        const list = json as ListResponse;
+        // 마지막 페이지의 항목을 모두 처리해 빈 페이지가 되면 마지막 유효 페이지로 이동
+        const lastPage = Math.max(1, Math.ceil(list.total / list.pageSize));
+        if (list.items.length === 0 && page > lastPage) {
+          setPage(lastPage);
+          return;
+        }
+        setData(list);
       }
     } catch {
-      setError("네트워크 오류가 발생했습니다.");
+      if (seq === reqSeq.current) setError("네트워크 오류가 발생했습니다.");
     } finally {
-      setLoading(false);
+      if (seq === reqSeq.current) setLoading(false);
     }
   }, [filter, page]);
 

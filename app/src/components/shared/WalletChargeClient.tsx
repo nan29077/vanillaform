@@ -56,7 +56,13 @@ export default function WalletChargeClient({
   const [summary, setSummary] = useState<WalletSummaryDTO>(initial);
   const [tab, setTab] = useState<MainTab>("vbank");
   const [notice, setNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const [issued, setIssued] = useState<WalletChargeDTO | null>(null);
+  const [issuedSnapshot, setIssued] = useState<WalletChargeDTO | null>(null);
+  // 발급 패널은 최신 목록 기준으로 표시한다 (관리자 승인·기한 만료 후 낡은 "발급됨" 화면이 남지 않도록)
+  const issued = issuedSnapshot
+    ? summary.charges.find((c) => c.id === issuedSnapshot.id) ?? issuedSnapshot
+    : null;
+  // 취소 요청 중인 항목 (중복 클릭 방지)
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [historyTab, setHistoryTab] = useState<HistoryTab>("payments");
 
   const refresh = useCallback(async () => {
@@ -98,22 +104,28 @@ export default function WalletChargeClient({
 
   const cancelCharge = useCallback(
     async (id: string) => {
+      if (cancellingId) return;
+      setCancellingId(id);
       setNotice(null);
       try {
         const res = await fetch(`/api/wallet/charges/${encodeURIComponent(id)}/cancel`, { method: "POST" });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
           setNotice({ type: "error", text: data.error || "취소하지 못했습니다." });
+          // 그 사이 승인·만료 등으로 상태가 바뀌었을 수 있으므로 목록을 다시 불러온다
+          await refresh();
           return;
         }
         setSummary({ balance: data.balance, charges: data.charges });
-        if (issued?.id === id) setIssued(null);
+        setIssued((cur) => (cur?.id === id ? null : cur));
         setNotice({ type: "success", text: "충전 요청을 취소했습니다." });
       } catch {
         setNotice({ type: "error", text: "네트워크 오류가 발생했습니다. 다시 시도해 주세요." });
+      } finally {
+        setCancellingId(null);
       }
     },
-    [issued],
+    [cancellingId, refresh],
   );
 
   const paymentRows = summary.charges.filter((c) => c.method !== "VOUCHER_PIN");
@@ -228,6 +240,7 @@ export default function WalletChargeClient({
                 return !!charge;
               }}
               onCancel={cancelCharge}
+              cancellingId={cancellingId}
               onClearIssued={() => setIssued(null)}
             />
           ) : (
@@ -289,6 +302,7 @@ export default function WalletChargeClient({
           rows={historyTab === "payments" ? paymentRows : voucherRows}
           emptyText={historyTab === "payments" ? "결제 내역이 없습니다." : "등록한 상품권이 없습니다."}
           onCancel={cancelCharge}
+          cancellingId={cancellingId}
         />
       </div>
     </div>
@@ -465,6 +479,7 @@ function VirtualAccountPanel({
   issued,
   onIssue,
   onCancel,
+  cancellingId,
   onClearIssued,
 }: {
   disabled: boolean;
@@ -472,6 +487,7 @@ function VirtualAccountPanel({
   issued: WalletChargeDTO | null;
   onIssue: (amount: number, depositorName: string) => Promise<boolean>;
   onCancel: (id: string) => Promise<void>;
+  cancellingId: string | null;
   onClearIssued: () => void;
 }) {
   const [total, setTotal] = useState(0);
@@ -513,10 +529,11 @@ function VirtualAccountPanel({
           <button
             type="button"
             onClick={() => onCancel(issued.id)}
+            disabled={cancellingId === issued.id}
             data-testid="vbank-cancel"
-            className="rounded-full border border-gray-300 bg-white py-2.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+            className="rounded-full border border-gray-300 bg-white py-2.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
           >
-            발급 취소
+            {cancellingId === issued.id ? "취소 중..." : "발급 취소"}
           </button>
           <button
             type="button"
@@ -761,10 +778,12 @@ function HistoryList({
   rows,
   emptyText,
   onCancel,
+  cancellingId,
 }: {
   rows: WalletChargeDTO[];
   emptyText: string;
   onCancel: (id: string) => Promise<void>;
+  cancellingId: string | null;
 }) {
   if (rows.length === 0) {
     return <p className="py-10 text-center text-xs text-gray-400" data-testid="history-empty">{emptyText}</p>;
@@ -810,10 +829,11 @@ function HistoryList({
               <button
                 type="button"
                 onClick={() => onCancel(c.id)}
+                disabled={cancellingId === c.id}
                 data-testid="history-cancel"
-                className="rounded-full border border-gray-200 px-3 py-1 text-[11px] text-gray-600 hover:bg-gray-50"
+                className="rounded-full border border-gray-200 px-3 py-1 text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-50"
               >
-                요청 취소
+                {cancellingId === c.id ? "취소 중..." : "요청 취소"}
               </button>
             </div>
           )}

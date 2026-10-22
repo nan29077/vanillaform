@@ -19,6 +19,7 @@ import {
   CHARGE_MIN_AMOUNT,
   DEFAULT_MERCHANT_NAME,
   MAX_PENDING_CHARGES,
+  MAX_WALLET_BALANCE,
   VBANK_DUE_HOURS,
   VOUCHER_PIN_MAX_LENGTH,
   VOUCHER_PIN_MIN_LENGTH,
@@ -44,7 +45,7 @@ export function isWalletAutoApproveEnabled(): boolean {
 
 // ── 금액 / 상품권 검증 ────────────────────────────────────────────
 
-export function assertChargeAmount(value: unknown, min = CHARGE_MIN_AMOUNT): number {
+export function assertChargeAmount(value: unknown, min = CHARGE_MIN_AMOUNT, step = 1000): number {
   const n = typeof value === "string" ? Number(value) : value;
   if (typeof n !== "number" || !Number.isInteger(n)) {
     throw new WalletError("충전 금액이 올바르지 않습니다.");
@@ -53,7 +54,7 @@ export function assertChargeAmount(value: unknown, min = CHARGE_MIN_AMOUNT): num
   if (n > CHARGE_MAX_AMOUNT) {
     throw new WalletError(`1회 충전 한도는 ${CHARGE_MAX_AMOUNT.toLocaleString("ko-KR")}원입니다.`);
   }
-  if (n % 1000 !== 0) throw new WalletError("충전 금액은 1,000원 단위여야 합니다.");
+  if (n % step !== 0) throw new WalletError(`충전 금액은 ${step.toLocaleString("ko-KR")}원 단위여야 합니다.`);
   return n;
 }
 
@@ -79,14 +80,20 @@ export function normalizeVoucherPin(raw: unknown): string {
 
 /** 표시용 마스킹: 앞 4자리 + XXXX + 뒤 4자리 */
 export function maskVoucherPin(pin: string): string {
-  return `${pin.slice(0, 4)}-XXXX-${pin.slice(-4)}`;
+  // 앞·뒤로 각각 최대 4자리, 전체의 1/4 이하만 노출 (16자리 → 앞4·뒤4, 10자리 → 앞2·뒤2)
+  const visible = Math.max(1, Math.min(4, Math.floor(pin.length / 4)));
+  return `${pin.slice(0, visible)}-XXXX-${pin.slice(-visible)}`;
 }
 
-/** 중복 등록 방지용 해시. 원문 PIN 은 어디에도 저장하지 않는다 */
-export function hashVoucherPin(type: VoucherTypeKey, pin: string): string {
+/**
+ * 중복 등록 방지용 해시. 원문 PIN 은 어디에도 저장하지 않는다.
+ * 상품권 종류를 바꿔 같은 PIN 을 다시 등록하지 못하도록 PIN 자체로만 판정한다.
+ * ※ 시크릿이 바뀌면 기존 해시와 비교할 수 없으므로 운영에서는 전용 WALLET_PIN_SECRET 을 두고 바꾸지 않는다.
+ */
+export function hashVoucherPin(pin: string): string {
   const secret = process.env.WALLET_PIN_SECRET || process.env.AUTH_SECRET;
   if (!secret) throw new WalletError("서버 설정이 완료되지 않아 상품권을 등록할 수 없습니다.", 503);
-  return createHmac("sha256", secret).update(`${type}:${pin}`).digest("hex");
+  return createHmac("sha256", secret).update(`voucher-pin:${pin}`).digest("hex");
 }
 
 // ── 모의 가상계좌 ─────────────────────────────────────────────────
@@ -269,7 +276,16 @@ export async function createCharge(
       select: { id: true },
     });
     if (isWalletAutoApproveEnabled()) {
-      await creditCharge(row.id, null, { memo: "개발 모드 자동 승인 (목업)" });
+      try {
+        await creditCharge(row.id, null, { memo: "개발 모드 자동 승인 (목업)" });
+      } catch (e) {
+        // 자동 승인에 실패하면 대기 건으로 남기지 않는다 (나중에 관리자가 중복 승인하는 것 방지)
+        await prisma.walletCharge.updateMany({
+          where: { id: row.id, status: "PENDING" },
+          data: { status: "REJECTED", processedAt: new Date(), adminMemo: "자동 승인 실패" },
+        });
+        throw e;
+      }
     }
     const fresh = await prisma.walletCharge.findUniqueOrThrow({ where: { id: row.id }, select: CHARGE_DTO_SELECT });
     const balance = await currentBalance(userId);
@@ -279,7 +295,7 @@ export async function createCharge(
   // VOUCHER_PIN
   const voucherType = assertVoucherType(input.voucherType);
   const pin = normalizeVoucherPin(input.pin);
-  const voucherPinHash = hashVoucherPin(voucherType, pin);
+  const voucherPinHash = hashVoucherPin(pin);
   try {
     const row = await prisma.walletCharge.create({
       data: {
@@ -341,31 +357,45 @@ export async function creditCharge(
     throw new WalletError("입금기한이 지난 가상계좌입니다.", 409);
   }
 
+  // 보유 상품권은 실제 액면가(예: 5,500원)가 다양하므로 10원 단위까지 허용
   const amount =
-    charge.method === "VOUCHER_PIN" ? assertChargeAmount(opts.amount, 1000) : charge.amount;
+    charge.method === "VOUCHER_PIN" ? assertChargeAmount(opts.amount, 1000, 10) : charge.amount;
   if (amount <= 0) throw new WalletError("충전 금액이 올바르지 않습니다.");
   const memo = opts.memo ? String(opts.memo).slice(0, 500) : null;
 
   await ensureWallet(charge.userId);
 
   return prisma.$transaction(async (tx) => {
+    const now = new Date();
     const updated = await tx.walletCharge.updateMany({
-      where: { id: chargeId, status: "PENDING" },
+      where: {
+        id: chargeId,
+        status: "PENDING",
+        // 가상계좌는 승인 시점에도 입금기한 안이어야 한다
+        ...(charge.method === "VIRTUAL_ACCOUNT" ? { OR: [{ vbankDueAt: null }, { vbankDueAt: { gt: now } }] } : {}),
+      },
       data: {
         status: "COMPLETED",
         amount,
-        processedAt: new Date(),
+        processedAt: now,
         processedById,
         ...(memo ? { adminMemo: memo } : {}),
       },
     });
-    if (updated.count !== 1) throw new WalletError("이미 처리된 요청입니다.", 409);
+    if (updated.count !== 1) throw new WalletError("이미 처리되었거나 입금기한이 지난 요청입니다.", 409);
 
     const wallet = await tx.userWallet.update({
       where: { userId: charge.userId },
       data: { balance: { increment: amount } },
       select: { balance: true },
     });
+    if (wallet.balance > MAX_WALLET_BALANCE) {
+      // 트랜잭션이 롤백되어 상태·잔액 모두 원래대로 돌아간다
+      throw new WalletError(
+        `보유 가능한 잔액 한도(${MAX_WALLET_BALANCE.toLocaleString("ko-KR")}원)를 넘어 충전할 수 없습니다.`,
+        409,
+      );
+    }
     await tx.walletLedger.create({
       data: {
         userId: charge.userId,

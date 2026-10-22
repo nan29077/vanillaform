@@ -11,6 +11,8 @@ export const CHARGE_AMOUNT_STEPS = [50_000, 100_000, 300_000, 500_000] as const;
 /** 1회 충전 한도 */
 export const CHARGE_MIN_AMOUNT = 10_000;
 export const CHARGE_MAX_AMOUNT = 5_000_000;
+/** 회원 1명이 보유할 수 있는 잔액 상한 (DB INT 범위 보호 겸 이상 충전 방지) */
+export const MAX_WALLET_BALANCE = 100_000_000;
 /** 회원 1명이 동시에 가질 수 있는 대기 중 요청 수 */
 export const MAX_PENDING_CHARGES = 5;
 /** 가상계좌 입금기한 (시간) */
