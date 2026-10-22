@@ -114,7 +114,7 @@ export default async function MyPage() {
       {/* 프로필 카드 (바닐라 플라워 노랑 + 검정 텍스트) */}
       <div className="bg-brand-500 px-4 pt-6 pb-10">
         <div className="flex items-center gap-3">
-          <div className="w-14 h-14 rounded-full bg-black/10 flex items-center justify-center text-gray-900 text-xl font-bold overflow-hidden">
+          <div className="w-14 h-14 flex-shrink-0 rounded-full bg-black/10 flex items-center justify-center text-gray-900 text-xl font-bold overflow-hidden">
             <img
               src={user.avatar || pickBuyerAvatar(user.id, (user as any).gender)}
               alt={user.name}
@@ -122,24 +122,24 @@ export default async function MyPage() {
               referrerPolicy="no-referrer"
             />
           </div>
-          <div className="flex-1">
-            <h1 className="text-lg font-bold text-gray-900">{user.name}</h1>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-lg font-bold text-gray-900 truncate">{user.name}</h1>
             {/* OAuth 이메일 미동의 시 placeholder(@no-email.local)는 숨김 */}
             {user.email && !user.email.endsWith("@no-email.local") && (
-              <p className="text-xs text-gray-800/70">{user.email}</p>
+              <p className="text-xs text-gray-800/70 truncate">{user.email}</p>
             )}
           </div>
           {walletBalance !== null && (
             <Link
               href="/my/wallet"
               data-testid="mypage-balance"
-              className="flex flex-col items-end rounded-xl bg-white/30 px-3 py-1.5 transition-colors hover:bg-white/45"
+              className="flex flex-shrink-0 flex-col items-end whitespace-nowrap rounded-xl bg-white/30 px-3 py-1.5 transition-colors hover:bg-white/45"
             >
               <span className="text-[10px] leading-tight text-gray-800/70">잔액</span>
               <span className="text-sm font-bold leading-tight text-gray-900">{walletBalance.toLocaleString("ko-KR")}원</span>
             </Link>
           )}
-          <Link href="/my/settings" className="p-2 text-gray-700 hover:text-gray-900">
+          <Link href="/my/settings" className="flex-shrink-0 p-2 text-gray-700 hover:text-gray-900">
             <Icon name="Settings" size={20} strokeWidth={1.5} />
           </Link>
         </div>

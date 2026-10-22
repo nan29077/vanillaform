@@ -128,7 +128,7 @@ export default function WalletChargeClient({
         ok = await appConfirm({
           title: "충전 요청 취소",
           message:
-            "이 충전 요청을 취소할까요?\n취소한 가상계좌·상품권 등록은 되돌릴 수 없습니다.",
+            "이 충전 요청을 취소할까요?\n취소한 요청은 되돌릴 수 없습니다.",
           type: "warning",
           confirmText: "네, 취소합니다",
           cancelText: "아니요",
@@ -441,17 +441,18 @@ function MainTabButton({
     >
       <span
         className={cn(
-          "flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg",
+          // 아주 좁은 화면(360px 미만)에서는 아이콘을 숨겨 글자가 중간에서 끊기지 않게 한다
+          "hidden h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg min-[360px]:flex",
           active ? "bg-white" : "bg-gray-100",
         )}
       >
         <Icon name={icon} size={18} />
       </span>
       <span className="min-w-0">
-        <span className="block text-[13px] font-bold">{title}</span>
+        <span className="block break-keep text-[13px] font-bold">{title}</span>
         <span
           className={cn(
-            "block truncate text-[10px]",
+            "block break-keep text-[10px] leading-snug",
             active ? "text-white/70" : "text-gray-500",
           )}
         >
