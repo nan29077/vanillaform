@@ -50,13 +50,17 @@ export default function MobileNav() {
   // "마이페이지"는 역할에 따라 본인 대시보드 또는 /my 로 연결 (비구매자 /my 리다이렉트 플래시 방지)
   const myHref = myPageHref(session?.user?.role);
 
-  // 메인(구매자) 하단 메뉴: 홈 · 라이브 · 내 PICK · 주문내역 · 마이페이지
+  // "결제"(충전 결제) 는 구매자 전용 — 비로그인(로그인 후 이동) 또는 구매자에게만 노출, 기능 토글 존중
+  const showWallet = flags.walletCharge && (!session?.user?.role || session.user.role === "BUYER");
+
+  // 메인(구매자) 하단 메뉴: 홈 · 라이브 · 내 PICK · 주문내역 · 결제 · 마이페이지
   // (셀러 전용 진입은 빼고, 라이브는 기능 토글을 존중)
   const navItems: { href: string; icon: string; label: string; matchExact?: boolean }[] = [
     { href: "/", icon: "Home", label: "홈", matchExact: true },
     ...(flags.liveCommerce ? [{ href: "/live", icon: "Live", label: "라이브" }] : []),
     { href: "/my/seller", icon: "MyPick", label: "내 PICK" },
     { href: "/my/orders", icon: "OrderHistory", label: "주문내역" },
+    ...(showWallet ? [{ href: "/my/wallet", icon: "Wallet", label: "결제" }] : []),
     { href: myHref, icon: "MyPage", label: "마이페이지", matchExact: true },
   ];
 

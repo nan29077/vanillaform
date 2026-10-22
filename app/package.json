@@ -19,6 +19,7 @@
     "db:seed": "node scripts/assert-isolated-env.mjs && npx tsx prisma/seed.ts",
     "db:cleanup": "node scripts/assert-isolated-env.mjs && npx tsx prisma/cleanup-seed.ts",
     "db:seed-node": "node scripts/assert-isolated-env.mjs && npx tsx prisma/seed-node.ts",
+    "db:seed-branch": "node scripts/assert-isolated-env.mjs && npx tsx prisma/seed-branch-seller.ts",
     "db:studio": "node scripts/assert-isolated-env.mjs && prisma studio"
   },
   "dependencies": {

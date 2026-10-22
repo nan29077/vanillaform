@@ -1,5 +1,6 @@
 import { PrismaClient, Role } from "../src/generated/prisma";
 import bcrypt from "bcryptjs";
+import { BRANCH_SELLER, ensureBranchSeller } from "./branchSeller";
 
 const prisma = new PrismaClient();
 
@@ -58,10 +59,14 @@ async function main() {
     },
   });
 
+  // 테스트 셀러: 바닐라폼 지점 (충전 결제 목업의 판매처)
+  await ensureBranchSeller(prisma);
+
   console.log("시드 데이터 생성 완료!");
   console.log("  - 관리자: admin@vanillaform.local / password123");
   console.log("  - 셀러1: seller1@vanillaform.local / password123 (테스트 셀러샵)");
   console.log("  - 구매자1: buyer1@example.com / password123");
+  console.log(`  - 지점 셀러: ${BRANCH_SELLER.email} / ${BRANCH_SELLER.password} (${BRANCH_SELLER.shopName})`);
 }
 
 main()

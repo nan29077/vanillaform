@@ -9,6 +9,7 @@ import MyPageBottomMenu from "@/components/shared/MyPageBottomMenu";
 import ApplySellerButton from "@/components/shared/ApplySellerButton";
 import { getFeatureFlags } from "@/lib/settings";
 import { requireBuyerSession } from "@/lib/buyerGuard";
+import { getWalletBalanceSafe } from "@/lib/wallet";
 import { NO_IMAGE, pickBuyerAvatar, pickSellerAvatar } from "@/lib/defaults";
 import { isSellerLive, sellerProfileImage } from "@/lib/sellerLive";
 import LiveBadge, { LIVE_RING_CLASS } from "@/components/shared/LiveBadge";
@@ -80,6 +81,9 @@ export default async function MyPage() {
 
   const flags = await getFeatureFlags();
 
+  // 충전 잔액 — 충전 결제 기능이 켜져 있을 때만. 조회 실패(DB 미반영 등) 시 null → 표시 생략
+  const walletBalance = flags.walletCharge ? await getWalletBalanceSafe(session.user!.id) : null;
+
   // Compute discount benefits (before menuItems to avoid reference error)
   const referredSeller = user.buyerProfile?.referredBySeller;
   const pickedSellers = user.buyerProfile?.follows || [];
@@ -125,6 +129,16 @@ export default async function MyPage() {
               <p className="text-xs text-gray-800/70">{user.email}</p>
             )}
           </div>
+          {walletBalance !== null && (
+            <Link
+              href="/my/wallet"
+              data-testid="mypage-balance"
+              className="flex flex-col items-end rounded-xl bg-white/30 px-3 py-1.5 transition-colors hover:bg-white/45"
+            >
+              <span className="text-[10px] leading-tight text-gray-800/70">잔액</span>
+              <span className="text-sm font-bold leading-tight text-gray-900">{walletBalance.toLocaleString("ko-KR")}원</span>
+            </Link>
+          )}
           <Link href="/my/settings" className="p-2 text-gray-700 hover:text-gray-900">
             <Icon name="Settings" size={20} strokeWidth={1.5} />
           </Link>

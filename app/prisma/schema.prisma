@@ -110,6 +110,10 @@ model User {
   packageProducts         PackageProduct[]     @relation("PackageCreator")
   // 패키지 발주서 수신자
   packagePurchaseOrders   PackagePurchaseOrder[] @relation("PackagePurchaseOrderRecipient")
+  // 충전식 잔액(선불) — 목업 단계
+  wallet                  UserWallet?
+  walletCharges           WalletCharge[]
+  walletLedgers           WalletLedger[]
 
   @@map("users")
 }
@@ -1887,4 +1891,98 @@ model PackagePurchaseOrder {
   @@index([packageOrderItemId])
   @@index([recipientId])
   @@map("package_purchase_orders")
+}
+
+// ─────────────────────────────────────────────
+// 충전식 잔액(선불) 결제 — 목업 단계
+// - 회원이 가상계좌 입금 / 상품권(구매·보유 PIN)으로 잔액을 충전한다.
+// - 현재는 실제 PG·상품권 검증 API 없이 모의 동작(isMock=true)한다.
+//   가상계좌 입금 확인·상품권 검증은 관리자 승인으로 대신한다.
+// - 잔액 변경은 반드시 WalletLedger 에 기록한다(잔액 = 원장 합계).
+// ─────────────────────────────────────────────
+
+enum WalletChargeMethod {
+  VIRTUAL_ACCOUNT // 가상계좌 입금
+  VOUCHER_PURCHASE // 상품권 구매 후 충전
+  VOUCHER_PIN // 보유 상품권 PIN 등록 충전
+}
+
+enum WalletChargeStatus {
+  PENDING // 입금 대기 / 검증 대기
+  COMPLETED // 충전 완료(잔액 반영됨)
+  CANCELLED // 회원 취소
+  REJECTED // 관리자 반려
+  EXPIRED // 가상계좌 입금기한 만료
+}
+
+enum WalletLedgerType {
+  CHARGE // 충전
+  USE // 사용 (향후 잔액 결제)
+  REFUND // 환불
+  ADJUST // 관리자 조정
+}
+
+model UserWallet {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balance   Int      @default(0) // 원 단위
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("user_wallets")
+}
+
+model WalletCharge {
+  id     String             @id @default(cuid())
+  userId String
+  user   User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  method WalletChargeMethod
+  status WalletChargeStatus @default(PENDING)
+  amount Int                @default(0) // 원 단위. 보유 상품권(PIN)은 검증(승인) 시 확정
+
+  // 결제창에 표시한 판매처(지점) 이름 스냅샷 — 표시용
+  merchantName String?
+
+  // 가상계좌
+  vbankName     String?
+  vbankAccount  String?
+  vbankHolder   String?
+  vbankDueAt    DateTime?
+  depositorName String?
+
+  // 상품권
+  voucherType      String? // LOTTE | EMART | OTHER
+  voucherPinMasked String? // 표시용 (예: 1234-XXXX-5678). 원문 PIN 은 저장하지 않는다
+  // PIN 중복 등록 방지용 HMAC. 대기·완료 상태에서만 값이 있고, 취소·반려 시 null 로 풀어준다
+  voucherPinHash   String? @unique
+
+  isMock        Boolean   @default(true)
+  adminMemo     String?   @db.Text
+  processedById String?
+  processedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  ledgers WalletLedger[]
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@map("wallet_charges")
+}
+
+model WalletLedger {
+  id           String           @id @default(cuid())
+  userId       String
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chargeId     String?
+  charge       WalletCharge?    @relation(fields: [chargeId], references: [id], onDelete: SetNull)
+  type         WalletLedgerType
+  amount       Int // 부호 있는 금액 (충전 +, 사용 -)
+  balanceAfter Int
+  memo         String?          @db.Text
+  createdAt    DateTime         @default(now())
+
+  @@index([userId, createdAt])
+  @@map("wallet_ledgers")
 }

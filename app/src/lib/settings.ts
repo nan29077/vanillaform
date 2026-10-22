@@ -104,6 +104,7 @@ export async function getFeatureFlags(): Promise<FeatureFlags> {
     referral: parseBool(map[FEATURE_SETTING_KEYS.referral], FEATURE_DEFAULTS.referral),
     beeDecoration: parseBool(map[FEATURE_SETTING_KEYS.beeDecoration], FEATURE_DEFAULTS.beeDecoration),
     game: parseBool(map[FEATURE_SETTING_KEYS.game], FEATURE_DEFAULTS.game),
+    walletCharge: parseBool(map[FEATURE_SETTING_KEYS.walletCharge], FEATURE_DEFAULTS.walletCharge),
     themSnow: parseBool(map[FEATURE_SETTING_KEYS.themSnow], FEATURE_DEFAULTS.themSnow),
     themCherry: parseBool(map[FEATURE_SETTING_KEYS.themCherry], FEATURE_DEFAULTS.themCherry),
     themHalloween: parseBool(map[FEATURE_SETTING_KEYS.themHalloween], FEATURE_DEFAULTS.themHalloween),

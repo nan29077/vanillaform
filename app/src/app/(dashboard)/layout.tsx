@@ -52,6 +52,7 @@ export default async function DashboardLayout({
       { href: "/admin/settlements", iconName: "Settlement", label: "정산 관리", group: "주문·정산" },
       { href: "/admin/brand-settlements", iconName: "Warehouse", label: "브랜드사 정산", group: "주문·정산" },
       { href: "/admin/deposit-transfer", iconName: "Wallet", label: "입금이체(송금)", group: "주문·정산" },
+      { href: "/admin/wallet-charges", iconName: "CreditCard", label: "충전 관리(목업)", group: "주문·정산" },
       { href: "/admin/manual-settlement", iconName: "Edit", label: "수기 정산", group: "주문·정산" },
       { href: "/admin/tax", iconName: "Receipt", label: "세무 관리", group: "주문·정산" },
       { href: "/admin/revenue", iconName: "Ranking", label: "관리자 수익", group: "주문·정산" },

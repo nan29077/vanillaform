@@ -6,6 +6,7 @@ const KEEP_EMAILS = [
   "admin@vanillaform.local",
   "seller1@vanillaform.local",
   "buyer1@example.com",
+  "branch@vanillaform.local", // 테스트 셀러: 바닐라폼 지점
 ];
 
 async function main() {
@@ -22,7 +23,7 @@ async function main() {
   await prisma.productVariant.deleteMany({});
   await prisma.product.deleteMany({});
 
-  // 유지 3개 계정을 제외한 모든 User 삭제 (관련 profile CASCADE 전제)
+  // 유지 계정(KEEP_EMAILS)을 제외한 모든 User 삭제 (관련 profile CASCADE 전제)
   await prisma.user.deleteMany({
     where: {
       email: { notIn: KEEP_EMAILS },

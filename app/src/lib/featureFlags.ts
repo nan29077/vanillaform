@@ -21,6 +21,8 @@ export const FEATURE_PRODUCT_REQUEST = true;
 export const FEATURE_REFERRAL = false;
 // 이전 브랜드 장식은 바닐라폼에서 기본 비활성화한다.
 export const FEATURE_BEE_DECORATION = false;
+// 충전 결제(가상계좌·상품권) — 목업 단계. 기본 노출(true). 실서비스 전에는 최고관리자가 끌 수 있다.
+export const FEATURE_WALLET_CHARGE = true;
 
 export type FeatureFlags = {
   groupBuy: boolean;
@@ -41,6 +43,7 @@ export type FeatureFlags = {
   themSummer: boolean;
   themAutumn: boolean;
   game: boolean;
+  walletCharge: boolean;
 };
 
 // 코드 기본값 (DB 값이 없을 때 사용)
@@ -63,6 +66,7 @@ export const FEATURE_DEFAULTS: FeatureFlags = {
   themSummer: false,
   themAutumn: false,
   game: true,
+  walletCharge: FEATURE_WALLET_CHARGE,
 };
 
 // Setting 테이블에 저장되는 key
@@ -85,6 +89,7 @@ export const FEATURE_SETTING_KEYS: Record<keyof FeatureFlags, string> = {
   themSummer: "themSummer",
   themAutumn: "themAutumn",
   game: "feature.game",
+  walletCharge: "feature.walletCharge",
 };
 
 // 소셜 링크 타입 (클라이언트/서버 공용)
@@ -174,6 +179,14 @@ export const FEATURE_META: {
     detail:
       "라이브 셀러가 시청자 참여를 유도하는 미니게임·이벤트를 운영하는 기능입니다. 켜면 라이브 셀러 사이드바에 '게임관리' 메뉴가 나타나 게임을 설정하고 방송 중 진행할 수 있습니다. 끄면 셀러 사이드바에서 게임관리 메뉴가 숨겨지고 신규 게임 운영이 중단되며, 설정해 둔 게임 데이터는 보존됩니다.",
     group: "content",
+  },
+  {
+    key: "walletCharge",
+    label: "충전 결제 (목업)",
+    desc: "가상계좌 입금·상품권 충전 결제. 끄면 하단 메뉴의 '결제', 마이페이지 잔액, /my/wallet 경로가 숨겨집니다.",
+    detail:
+      "회원이 가상계좌 입금이나 상품권(구매·보유 PIN)으로 잔액을 충전하는 기능입니다. 현재는 목업 단계로 실제 결제·입금이 일어나지 않으며, 가상계좌 입금 확인과 상품권 검증은 관리자 '충전 관리' 화면에서 승인해야 잔액에 반영됩니다. 켜면 구매자 하단 메뉴에 '결제'가 나타나고 마이페이지에 잔액이 표시됩니다. 끄면 해당 메뉴·경로가 숨겨지고 신규 충전 요청이 차단되며, 이미 쌓인 잔액·충전 내역은 보존됩니다. 실결제 연동 전 실서비스에 노출할 때는 회원 혼동이 없도록 주의하세요.",
+    group: "transaction",
   },
   {
     key: "seller",
