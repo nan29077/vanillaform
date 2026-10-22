@@ -33,13 +33,21 @@ export function voucherTypeLabel(key?: string | null): string {
 export const VOUCHER_PIN_MIN_LENGTH = 10;
 export const VOUCHER_PIN_MAX_LENGTH = 24;
 
-export type WalletChargeMethodKey = "VIRTUAL_ACCOUNT" | "VOUCHER_PURCHASE" | "VOUCHER_PIN";
-export type WalletChargeStatusKey = "PENDING" | "COMPLETED" | "CANCELLED" | "REJECTED" | "EXPIRED";
+export type WalletChargeMethodKey =
+  | "VIRTUAL_ACCOUNT"
+  | "VOUCHER_PURCHASE"
+  | "VOUCHER_PIN";
+export type WalletChargeStatusKey =
+  | "PENDING"
+  | "COMPLETED"
+  | "CANCELLED"
+  | "REJECTED"
+  | "EXPIRED";
 
 export const CHARGE_METHOD_LABEL: Record<WalletChargeMethodKey, string> = {
   VIRTUAL_ACCOUNT: "가상계좌",
   VOUCHER_PURCHASE: "상품권 구매",
-  VOUCHER_PIN: "상품권 사용",
+  VOUCHER_PIN: "상품권 등록",
 };
 
 export const CHARGE_STATUS_LABEL: Record<WalletChargeStatusKey, string> = {

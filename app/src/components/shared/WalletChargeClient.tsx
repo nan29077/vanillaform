@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Icon } from "@/components/shared/Icon";
+import { useAppDialog } from "@/components/shared/AppDialog";
 import { cn } from "@/lib/utils";
 import {
   CHARGE_AMOUNT_STEPS,
@@ -55,11 +56,15 @@ export default function WalletChargeClient({
 }: Props) {
   const [summary, setSummary] = useState<WalletSummaryDTO>(initial);
   const [tab, setTab] = useState<MainTab>("vbank");
-  const [notice, setNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [notice, setNotice] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
   const [issuedSnapshot, setIssued] = useState<WalletChargeDTO | null>(null);
   // 발급 패널은 최신 목록 기준으로 표시한다 (관리자 승인·기한 만료 후 낡은 "발급됨" 화면이 남지 않도록)
   const issued = issuedSnapshot
-    ? summary.charges.find((c) => c.id === issuedSnapshot.id) ?? issuedSnapshot
+    ? (summary.charges.find((c) => c.id === issuedSnapshot.id) ??
+      issuedSnapshot)
     : null;
   // 취소 요청 중인 항목 (중복 클릭 방지)
   const [cancellingId, setCancellingId] = useState<string | null>(null);
@@ -79,7 +84,9 @@ export default function WalletChargeClient({
 
   /** 충전 요청 공통 호출 */
   const submitCharge = useCallback(
-    async (payload: Record<string, unknown>): Promise<WalletChargeDTO | null> => {
+    async (
+      payload: Record<string, unknown>,
+    ): Promise<WalletChargeDTO | null> => {
       setNotice(null);
       try {
         const res = await fetch("/api/wallet/charges", {
@@ -89,29 +96,60 @@ export default function WalletChargeClient({
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          setNotice({ type: "error", text: data.error || "요청을 처리하지 못했습니다." });
+          setNotice({
+            type: "error",
+            text: data.error || "요청을 처리하지 못했습니다.",
+          });
           return null;
         }
         await refresh();
         return data.charge as WalletChargeDTO;
       } catch {
-        setNotice({ type: "error", text: "네트워크 오류가 발생했습니다. 다시 시도해 주세요." });
+        setNotice({
+          type: "error",
+          text: "네트워크 오류가 발생했습니다. 다시 시도해 주세요.",
+        });
         return null;
       }
     },
     [refresh],
   );
 
+  const { appConfirm } = useAppDialog();
+  // 확인창이 떠 있는 동안 다시 누르면 무시 (연속 탭으로 확인창이 겹치지 않도록)
+  const confirmingRef = useRef(false);
+
   const cancelCharge = useCallback(
     async (id: string) => {
-      if (cancellingId) return;
+      if (cancellingId || confirmingRef.current) return;
+      confirmingRef.current = true;
+      let ok = false;
+      try {
+        ok = await appConfirm({
+          title: "충전 요청 취소",
+          message:
+            "이 충전 요청을 취소할까요?\n취소한 가상계좌·상품권 등록은 되돌릴 수 없습니다.",
+          type: "warning",
+          confirmText: "네, 취소합니다",
+          cancelText: "아니요",
+        });
+      } finally {
+        confirmingRef.current = false;
+      }
+      if (!ok) return;
       setCancellingId(id);
       setNotice(null);
       try {
-        const res = await fetch(`/api/wallet/charges/${encodeURIComponent(id)}/cancel`, { method: "POST" });
+        const res = await fetch(
+          `/api/wallet/charges/${encodeURIComponent(id)}/cancel`,
+          { method: "POST" },
+        );
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          setNotice({ type: "error", text: data.error || "취소하지 못했습니다." });
+          setNotice({
+            type: "error",
+            text: data.error || "취소하지 못했습니다.",
+          });
           // 그 사이 승인·만료 등으로 상태가 바뀌었을 수 있으므로 목록을 다시 불러온다
           await refresh();
           return;
@@ -120,12 +158,15 @@ export default function WalletChargeClient({
         setIssued((cur) => (cur?.id === id ? null : cur));
         setNotice({ type: "success", text: "충전 요청을 취소했습니다." });
       } catch {
-        setNotice({ type: "error", text: "네트워크 오류가 발생했습니다. 다시 시도해 주세요." });
+        setNotice({
+          type: "error",
+          text: "네트워크 오류가 발생했습니다. 다시 시도해 주세요.",
+        });
       } finally {
         setCancellingId(null);
       }
     },
-    [cancellingId, refresh],
+    [appConfirm, cancellingId, refresh],
   );
 
   const paymentRows = summary.charges.filter((c) => c.method !== "VOUCHER_PIN");
@@ -136,8 +177,17 @@ export default function WalletChargeClient({
       {/* 상단 바 */}
       <div className="sticky top-12 z-30 bg-white border-b border-gray-100 px-4 py-3">
         <div className="flex items-center gap-3">
-          <Link href="/my" className="text-gray-500 hover:text-gray-900" aria-label="마이페이지로">
-            <Icon name="ArrowRight" size={20} strokeWidth={1.5} className="rotate-180" />
+          <Link
+            href="/my"
+            className="text-gray-500 hover:text-gray-900"
+            aria-label="마이페이지로"
+          >
+            <Icon
+              name="ArrowRight"
+              size={20}
+              strokeWidth={1.5}
+              className="rotate-180"
+            />
           </Link>
           <h1 className="text-base font-bold text-gray-900">결제</h1>
         </div>
@@ -147,8 +197,13 @@ export default function WalletChargeClient({
       <div className="mx-4 mt-4 rounded-2xl border border-gray-200 bg-white p-4">
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-[15px] font-extrabold tracking-wide text-gray-900">VANILLAFORM</p>
-            <p className="mt-0.5 text-[11px] text-gray-500" data-testid="wallet-merchant">
+            <p className="text-[15px] font-extrabold tracking-wide text-gray-900">
+              VANILLAFORM
+            </p>
+            <p
+              className="mt-0.5 text-[11px] text-gray-500"
+              data-testid="wallet-merchant"
+            >
               {merchantName} · 충전 결제
             </p>
           </div>
@@ -156,33 +211,50 @@ export default function WalletChargeClient({
         </div>
         <div className="mt-3 flex items-end justify-between border-t border-gray-100 pt-3">
           <span className="text-xs text-gray-500">현재 잔액</span>
-          <span className="text-xl font-bold text-gray-900" data-testid="wallet-balance">
+          <span
+            className="text-xl font-bold text-gray-900"
+            data-testid="wallet-balance"
+          >
             {won(summary.balance)}
           </span>
         </div>
       </div>
 
       {/* 목업 안내 */}
-      <div className="mx-4 mt-3 flex gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
-        <Icon name="Warning" size={16} className="mt-0.5 flex-shrink-0" />
+      <div className="mx-4 mt-3 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
+        <Icon
+          name="Warning"
+          size={16}
+          className="mt-0.5 h-4 w-4 flex-shrink-0"
+        />
         <p className="text-[11px] leading-relaxed text-amber-900">
-          <b>목업(테스트) 화면입니다.</b> 실제 결제·입금이 이루어지지 않습니다. 화면에 표시되는 가상계좌로
-          송금하지 마세요. 충전은 관리자 확인 후 잔액에 반영됩니다.
+          <b>목업(테스트) 화면입니다.</b> 실제 결제·입금이 이루어지지 않습니다.
+          화면에 표시되는 가상계좌로 송금하지 마세요.{" "}
+          {autoApprovePurchase
+            ? "가상계좌·보유 상품권은 관리자 확인 후, 상품권 구매는 즉시(개발 모드) 잔액에 반영됩니다."
+            : "충전은 관리자 확인 후 잔액에 반영됩니다."}
         </p>
       </div>
 
       {!dbReady && (
         <div className="mx-4 mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-[11px] text-red-700">
-          충전 결제 DB가 아직 준비되지 않아 충전을 진행할 수 없습니다. 관리자에게 문의해 주세요.
+          충전 결제 DB가 아직 준비되지 않아 충전을 진행할 수 없습니다.
+          관리자에게 문의해 주세요.
         </div>
       )}
 
       <div className="px-4 mt-5">
         <h2 className="text-base font-bold text-gray-900">충전 결제</h2>
-        <p className="mt-0.5 text-xs text-gray-500">원하시는 충전 금액과 결제 수단을 선택해 주세요.</p>
+        <p className="mt-0.5 text-xs text-gray-500">
+          원하시는 충전 금액과 결제 수단을 선택해 주세요.
+        </p>
 
         {/* 결제 방식 탭 */}
-        <div className="mt-3 grid grid-cols-2 gap-2" role="tablist">
+        <div
+          className="mt-3 grid grid-cols-2 gap-2"
+          role="tablist"
+          aria-label="결제 방식"
+        >
           <MainTabButton
             active={tab === "vbank"}
             onClick={() => {
@@ -222,14 +294,23 @@ export default function WalletChargeClient({
           </div>
         )}
 
-        <div className="mt-4">
+        <div
+          className="mt-4"
+          role="tabpanel"
+          id="wallet-panel"
+          aria-labelledby={tab === "vbank" ? "tab-vbank" : "tab-voucher"}
+        >
           {tab === "vbank" ? (
             <VirtualAccountPanel
               disabled={!dbReady}
               defaultDepositor={defaultDepositor}
               issued={issued}
               onIssue={async (amount, depositorName) => {
-                const charge = await submitCharge({ method: "VIRTUAL_ACCOUNT", amount, depositorName });
+                const charge = await submitCharge({
+                  method: "VIRTUAL_ACCOUNT",
+                  amount,
+                  depositorName,
+                });
                 if (charge) {
                   setIssued(charge);
                   setNotice({
@@ -248,7 +329,11 @@ export default function WalletChargeClient({
               disabled={!dbReady}
               autoApprovePurchase={autoApprovePurchase}
               onPurchase={async (voucherType, amount) => {
-                const charge = await submitCharge({ method: "VOUCHER_PURCHASE", voucherType, amount });
+                const charge = await submitCharge({
+                  method: "VOUCHER_PURCHASE",
+                  voucherType,
+                  amount,
+                });
                 if (charge) {
                   setHistoryTab("payments");
                   setNotice({
@@ -262,7 +347,11 @@ export default function WalletChargeClient({
                 return !!charge;
               }}
               onRegisterPin={async (voucherType, pin) => {
-                const charge = await submitCharge({ method: "VOUCHER_PIN", voucherType, pin });
+                const charge = await submitCharge({
+                  method: "VOUCHER_PIN",
+                  voucherType,
+                  pin,
+                });
                 if (charge) {
                   setHistoryTab("vouchers");
                   setNotice({
@@ -276,7 +365,7 @@ export default function WalletChargeClient({
           )}
         </div>
 
-        <p className="mt-4 flex items-center justify-center gap-1 text-[11px] text-gray-400">
+        <p className="mt-4 flex items-center justify-center gap-1 text-[11px] text-gray-500">
           <Icon name="Certified" size={12} />
           결제·상품권 검증 후 회원 잔액에 반영됩니다
         </p>
@@ -284,7 +373,11 @@ export default function WalletChargeClient({
 
       {/* 내역 */}
       <div className="px-4 mt-6">
-        <div className="flex border-b border-gray-200" role="tablist">
+        <div
+          className="flex border-b border-gray-200"
+          role="tablist"
+          aria-label="충전 내역"
+        >
           <HistoryTabButton
             active={historyTab === "payments"}
             onClick={() => setHistoryTab("payments")}
@@ -300,7 +393,11 @@ export default function WalletChargeClient({
         </div>
         <HistoryList
           rows={historyTab === "payments" ? paymentRows : voucherRows}
-          emptyText={historyTab === "payments" ? "결제 내역이 없습니다." : "등록한 상품권이 없습니다."}
+          emptyText={
+            historyTab === "payments"
+              ? "결제 내역이 없습니다."
+              : "등록한 상품권이 없습니다."
+          }
           onCancel={cancelCharge}
           cancellingId={cancellingId}
         />
@@ -330,12 +427,16 @@ function MainTabButton({
     <button
       type="button"
       role="tab"
+      id={testId}
       aria-selected={active}
+      aria-controls="wallet-panel"
       data-testid={testId}
       onClick={onClick}
       className={cn(
         "flex items-center gap-2.5 rounded-xl border px-3 py-3 text-left transition-colors",
-        active ? "border-brand-900 bg-brand-900 text-white" : "border-gray-200 bg-white text-gray-900 hover:bg-gray-50",
+        active
+          ? "border-brand-900 bg-brand-900 text-white"
+          : "border-gray-200 bg-white text-gray-900 hover:bg-gray-50",
       )}
     >
       <span
@@ -348,7 +449,14 @@ function MainTabButton({
       </span>
       <span className="min-w-0">
         <span className="block text-[13px] font-bold">{title}</span>
-        <span className={cn("block truncate text-[10px]", active ? "text-white/70" : "text-gray-500")}>{desc}</span>
+        <span
+          className={cn(
+            "block truncate text-[10px]",
+            active ? "text-white/70" : "text-gray-500",
+          )}
+        >
+          {desc}
+        </span>
       </span>
     </button>
   );
@@ -374,7 +482,9 @@ function HistoryTabButton({
       onClick={onClick}
       className={cn(
         "-mb-px flex-1 border-b-2 py-2.5 text-xs font-semibold transition-colors",
-        active ? "border-brand-900 text-gray-900" : "border-transparent text-gray-400 hover:text-gray-600",
+        active
+          ? "border-brand-900 text-gray-900"
+          : "border-transparent text-gray-500 hover:text-gray-700",
       )}
     >
       {label}
@@ -413,7 +523,9 @@ function AmountPicker({
           </button>
         ))}
       </div>
-      <p className="mt-1.5 text-[11px] text-gray-500">금액 버튼을 두 번 누르면 해당 금액이 두 번 합산됩니다.</p>
+      <p className="mt-1.5 text-[11px] text-gray-500">
+        금액 버튼을 두 번 누르면 해당 금액이 두 번 합산됩니다.
+      </p>
       <div className="mt-3 rounded-xl bg-gray-50 px-4 py-3">
         <div className="flex items-center justify-between">
           <span className="text-xs text-gray-600">{totalLabel}</span>
@@ -422,13 +534,16 @@ function AmountPicker({
             onClick={() => onChange(0)}
             disabled={disabled || total === 0}
             data-testid="amount-reset"
-            className="flex items-center gap-1 text-[11px] text-gray-500 hover:text-gray-800 disabled:opacity-40"
+            className="-my-2 -mr-2 flex items-center gap-1 rounded-md px-2 py-2 text-[11px] text-gray-500 hover:text-gray-800 disabled:opacity-40"
           >
             <Icon name="ResetFilter" size={12} />
             초기화
           </button>
         </div>
-        <p className="mt-1 text-right text-xl font-bold text-gray-900" data-testid="amount-total">
+        <p
+          className="mt-1 text-right text-xl font-bold text-gray-900"
+          data-testid="amount-total"
+        >
           {won(total)}
         </p>
       </div>
@@ -497,9 +612,16 @@ function VirtualAccountPanel({
 
   if (issued && issued.status === "PENDING") {
     return (
-      <div className="rounded-2xl border border-brand-200 bg-brand-50/60 p-4" data-testid="vbank-issued">
-        <p className="text-sm font-bold text-gray-900">가상계좌가 발급되었습니다</p>
-        <p className="mt-0.5 text-[11px] text-gray-500">아래 계좌로 입금기한 내에 입금해 주세요. (목업 계좌)</p>
+      <div
+        className="rounded-2xl border border-brand-200 bg-brand-50/60 p-4"
+        data-testid="vbank-issued"
+      >
+        <p className="text-sm font-bold text-gray-900">
+          가상계좌가 발급되었습니다
+        </p>
+        <p className="mt-0.5 text-[11px] text-gray-500">
+          아래 계좌로 입금기한 내에 입금해 주세요. (목업 계좌)
+        </p>
         <dl className="mt-3 space-y-2 rounded-xl bg-white p-3 text-xs">
           <Row label="은행" value={issued.vbankName ?? "-"} />
           <div className="flex items-center justify-between gap-2">
@@ -509,12 +631,15 @@ function VirtualAccountPanel({
               <button
                 type="button"
                 onClick={async () => {
-                  if (issued.vbankAccount && (await copyText(issued.vbankAccount))) {
+                  if (
+                    issued.vbankAccount &&
+                    (await copyText(issued.vbankAccount))
+                  ) {
                     setCopied(true);
                     setTimeout(() => setCopied(false), 1500);
                   }
                 }}
-                className="rounded-md border border-gray-200 px-1.5 py-0.5 text-[10px] text-gray-600 hover:bg-gray-50"
+                className="rounded-md border border-gray-200 px-2 py-1.5 text-[10px] text-gray-600 hover:bg-gray-50"
               >
                 {copied ? "복사됨" : "복사"}
               </button>
@@ -529,7 +654,7 @@ function VirtualAccountPanel({
           <button
             type="button"
             onClick={() => onCancel(issued.id)}
-            disabled={cancellingId === issued.id}
+            disabled={!!cancellingId}
             data-testid="vbank-cancel"
             className="rounded-full border border-gray-300 bg-white py-2.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
           >
@@ -585,16 +710,33 @@ function VirtualAccountPanel({
       >
         가상계좌 발급하기 →
       </PrimaryButton>
-      <p className="mt-2 text-center text-[11px] text-gray-400">결제 완료 후 충전 내역은 아래 결제 내역에서 확인할 수 있습니다.</p>
+      <p className="mt-2 text-center text-[11px] text-gray-500">
+        결제 완료 후 충전 내역은 아래 결제 내역에서 확인할 수 있습니다.
+      </p>
     </div>
   );
 }
 
-function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+function Row({
+  label,
+  value,
+  strong,
+}: {
+  label: string;
+  value: string;
+  strong?: boolean;
+}) {
   return (
     <div className="flex items-center justify-between gap-2">
       <dt className="text-gray-500">{label}</dt>
-      <dd className={cn("text-right", strong ? "font-bold text-brand-700" : "font-medium text-gray-900")}>{value}</dd>
+      <dd
+        className={cn(
+          "text-right",
+          strong ? "font-bold text-brand-700" : "font-medium text-gray-900",
+        )}
+      >
+        {value}
+      </dd>
     </div>
   );
 }
@@ -644,7 +786,10 @@ function VoucherPanel({
         <p className="text-sm font-bold text-gray-900">상품권 종류 선택</p>
         <div className="mt-2 space-y-2" role="radiogroup">
           {VOUCHER_TYPES.map((v) => (
-            <label key={v.key} className="flex cursor-pointer items-center gap-2.5 text-[13px] text-gray-800">
+            <label
+              key={v.key}
+              className="flex cursor-pointer items-center gap-2.5 text-[13px] text-gray-800"
+            >
               <input
                 type="radio"
                 name="voucherType"
@@ -682,7 +827,7 @@ function VoucherPanel({
           >
             상품권 구매하기 →
           </PrimaryButton>
-          <p className="mt-2 text-center text-[11px] text-gray-400">
+          <p className="mt-2 text-center text-[11px] text-gray-500">
             {autoApprovePurchase
               ? "개발 모드: 구매 즉시 잔액에 충전됩니다 (목업)"
               : "결제 확인 후 잔액에 반영됩니다 (목업)"}
@@ -691,7 +836,9 @@ function VoucherPanel({
       ) : (
         <div className="mt-4">
           <label className="block">
-            <span className="text-sm font-bold text-gray-900">보유 상품권 PIN 번호</span>
+            <span className="text-sm font-bold text-gray-900">
+              보유 상품권 PIN 번호
+            </span>
             <input
               type="text"
               value={pin}
@@ -705,7 +852,9 @@ function VoucherPanel({
             />
           </label>
           <ul className="mt-2 space-y-0.5 rounded-xl bg-gray-50 px-3 py-2.5 text-[11px] text-gray-500">
-            <li>• 상품권 발행사의 유효성 검증 후 사용 가능 금액이 충전됩니다.</li>
+            <li>
+              • 상품권 발행사의 유효성 검증 후 사용 가능 금액이 충전됩니다.
+            </li>
             <li>• PIN 번호는 대소문자를 구분하지 않습니다.</li>
             <li>• 이미 등록·사용된 상품권은 다시 사용할 수 없습니다.</li>
           </ul>
@@ -751,7 +900,9 @@ function ModeCard({
       data-testid={testId}
       className={cn(
         "flex flex-col items-center gap-1 rounded-xl border px-2 py-3 transition-colors",
-        active ? "border-brand-500 bg-brand-50 ring-1 ring-brand-500" : "border-gray-200 bg-white hover:bg-gray-50",
+        active
+          ? "border-brand-500 bg-brand-50 ring-1 ring-brand-500"
+          : "border-gray-200 bg-white hover:bg-gray-50",
       )}
     >
       <Icon name={icon} size={18} />
@@ -764,14 +915,23 @@ function ModeCard({
 // ── 내역 ──────────────────────────────────────────────────────────
 
 function statusBadge(c: WalletChargeDTO) {
-  const label = c.status === "PENDING" ? pendingLabel(c.method) : CHARGE_STATUS_LABEL[c.status];
+  const label =
+    c.status === "PENDING"
+      ? pendingLabel(c.method)
+      : CHARGE_STATUS_LABEL[c.status];
   const cls =
     c.status === "COMPLETED"
       ? "bg-emerald-50 text-emerald-700"
       : c.status === "PENDING"
-      ? "bg-amber-50 text-amber-700"
-      : "bg-gray-100 text-gray-500";
-  return <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold", cls)}>{label}</span>;
+        ? "bg-amber-50 text-amber-700"
+        : "bg-gray-100 text-gray-600";
+  return (
+    <span
+      className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold", cls)}
+    >
+      {label}
+    </span>
+  );
 }
 
 function HistoryList({
@@ -786,14 +946,29 @@ function HistoryList({
   cancellingId: string | null;
 }) {
   if (rows.length === 0) {
-    return <p className="py-10 text-center text-xs text-gray-400" data-testid="history-empty">{emptyText}</p>;
+    return (
+      <p
+        className="py-10 text-center text-xs text-gray-500"
+        data-testid="history-empty"
+      >
+        {emptyText}
+      </p>
+    );
   }
   return (
     <ul className="divide-y divide-gray-100" data-testid="history-list">
       {rows.map((c) => (
-        <li key={c.id} className="py-3" data-testid="history-item" data-status={c.status} data-method={c.method}>
+        <li
+          key={c.id}
+          className="py-3"
+          data-testid="history-item"
+          data-status={c.status}
+          data-method={c.method}
+        >
           <div className="flex items-center justify-between">
-            <span className="text-[11px] text-gray-400">{formatDateTime(c.createdAt)}</span>
+            <span className="text-[11px] text-gray-500">
+              {formatDateTime(c.createdAt)}
+            </span>
             {statusBadge(c)}
           </div>
           <div className="mt-1 flex items-center justify-between">
@@ -801,37 +976,53 @@ function HistoryList({
               <span
                 className={cn(
                   "rounded px-1.5 py-0.5 text-[10px] font-semibold",
-                  c.method === "VIRTUAL_ACCOUNT" ? "bg-sky-50 text-sky-700" : "bg-violet-50 text-violet-700",
+                  c.method === "VIRTUAL_ACCOUNT"
+                    ? "bg-sky-50 text-sky-700"
+                    : "bg-violet-50 text-violet-700",
                 )}
               >
                 {CHARGE_METHOD_LABEL[c.method]}
               </span>
               <span className="text-[13px] text-gray-800">
-                {c.method === "VIRTUAL_ACCOUNT" ? "잔액 충전" : voucherTypeLabel(c.voucherType)}
+                {c.method === "VIRTUAL_ACCOUNT"
+                  ? "잔액 충전"
+                  : voucherTypeLabel(c.voucherType)}
               </span>
             </span>
             <span className="text-sm font-bold text-gray-900">
-              {c.method === "VOUCHER_PIN" && c.status !== "COMPLETED" ? "금액 확인 중" : won(c.amount)}
+              {c.method === "VOUCHER_PIN" && c.status === "PENDING"
+                ? "금액 확인 중"
+                : c.method === "VOUCHER_PIN" && c.status !== "COMPLETED"
+                  ? "-"
+                  : won(c.amount)}
             </span>
           </div>
           {c.method === "VIRTUAL_ACCOUNT" && c.vbankAccount && (
             <p className="mt-1 text-[11px] text-gray-500">
               {c.vbankName} {c.vbankAccount}
-              {c.status === "PENDING" && c.vbankDueAt ? ` · ${formatDateTime(c.vbankDueAt)}까지` : ""}
+              {c.status === "PENDING" && c.vbankDueAt
+                ? ` · ${formatDateTime(c.vbankDueAt)}까지`
+                : ""}
             </p>
           )}
-          {c.voucherPinMasked && <p className="mt-1 text-[11px] text-gray-500">PIN {c.voucherPinMasked}</p>}
+          {c.voucherPinMasked && (
+            <p className="mt-1 text-[11px] text-gray-500">
+              PIN {c.voucherPinMasked}
+            </p>
+          )}
           {c.status === "REJECTED" && c.adminMemo && (
-            <p className="mt-1 text-[11px] text-red-500">반려 사유: {c.adminMemo}</p>
+            <p className="mt-1 text-[11px] text-red-600">
+              반려 사유: {c.adminMemo}
+            </p>
           )}
           {c.status === "PENDING" && (
             <div className="mt-2 text-right">
               <button
                 type="button"
                 onClick={() => onCancel(c.id)}
-                disabled={cancellingId === c.id}
+                disabled={!!cancellingId}
                 data-testid="history-cancel"
-                className="rounded-full border border-gray-200 px-3 py-1 text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                className="rounded-full border border-gray-200 px-3.5 py-2 text-[11px] text-gray-600 hover:bg-gray-50 disabled:opacity-50"
               >
                 {cancellingId === c.id ? "취소 중..." : "요청 취소"}
               </button>

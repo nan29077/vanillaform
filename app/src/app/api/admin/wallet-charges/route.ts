@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { CHARGE_DTO_SELECT, expireOverdueCharges, toChargeDTO, walletErrorResponse } from "@/lib/wallet";
+import {
+  CHARGE_DTO_SELECT,
+  expireOverdueCharges,
+  toChargeDTO,
+  walletErrorResponse,
+} from "@/lib/wallet";
 
 export const dynamic = "force-dynamic";
 
@@ -16,16 +21,27 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const status = searchParams.get("status") || "PENDING";
-  const page = Math.min(10_000, Math.max(1, Number.parseInt(searchParams.get("page") || "1", 10) || 1));
+  const page = Math.min(
+    10_000,
+    Math.max(1, Number.parseInt(searchParams.get("page") || "1", 10) || 1),
+  );
 
   const where =
     status === "PENDING"
       ? { status: "PENDING" as const }
       : status === "COMPLETED"
-      ? { status: "COMPLETED" as const }
-      : status === "CLOSED"
-      ? { status: { in: ["CANCELLED", "REJECTED", "EXPIRED"] as ("CANCELLED" | "REJECTED" | "EXPIRED")[] } }
-      : {};
+        ? { status: "COMPLETED" as const }
+        : status === "CLOSED"
+          ? {
+              status: {
+                in: ["CANCELLED", "REJECTED", "EXPIRED"] as (
+                  | "CANCELLED"
+                  | "REJECTED"
+                  | "EXPIRED"
+                )[],
+              },
+            }
+          : {};
 
   try {
     await expireOverdueCharges();
@@ -35,7 +51,10 @@ export async function GET(request: Request) {
         orderBy: { createdAt: "desc" },
         skip: (page - 1) * PAGE_SIZE,
         take: PAGE_SIZE,
-        select: { ...CHARGE_DTO_SELECT, user: { select: { id: true, name: true, email: true } } },
+        select: {
+          ...CHARGE_DTO_SELECT,
+          user: { select: { id: true, name: true, email: true } },
+        },
       }),
       prisma.walletCharge.count({ where }),
       prisma.walletCharge.aggregate({
@@ -50,7 +69,10 @@ export async function GET(request: Request) {
       total,
       page,
       pageSize: PAGE_SIZE,
-      pending: { count: pendingAgg._count._all, amount: pendingAgg._sum.amount ?? 0 },
+      pending: {
+        count: pendingAgg._count._all,
+        amount: pendingAgg._sum.amount ?? 0,
+      },
     });
   } catch (e) {
     return walletErrorResponse(e);

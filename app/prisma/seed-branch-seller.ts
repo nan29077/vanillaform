@@ -8,9 +8,17 @@ const prisma = new PrismaClient();
 
 async function main() {
   const { created } = await ensureBranchSeller(prisma);
-  console.log(created ? "바닐라폼 지점 셀러를 만들었습니다." : "바닐라폼 지점 셀러가 이미 있어 변경하지 않았습니다.");
-  console.log(`  - 아이디: ${BRANCH_SELLER.email} / 비밀번호: ${BRANCH_SELLER.password}`);
-  console.log(`  - 샵: ${BRANCH_SELLER.shopName} (/shop/${BRANCH_SELLER.slug})`);
+  console.log(
+    created
+      ? "바닐라폼 지점 셀러를 만들었습니다."
+      : "바닐라폼 지점 셀러가 이미 있어 변경하지 않았습니다.",
+  );
+  console.log(
+    `  - 아이디: ${BRANCH_SELLER.email} / 비밀번호: ${BRANCH_SELLER.password}`,
+  );
+  console.log(
+    `  - 샵: ${BRANCH_SELLER.shopName} (/shop/${BRANCH_SELLER.slug})`,
+  );
 }
 
 main()

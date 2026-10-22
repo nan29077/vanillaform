@@ -40,21 +40,36 @@ export class WalletError extends Error {
 
 /** 상품권 구매를 승인 없이 즉시 충전할지 (개발 모드 기본 on, 실서버 기본 off) */
 export function isWalletAutoApproveEnabled(): boolean {
-  return process.env.NODE_ENV === "development" || process.env.WALLET_MOCK_AUTO_APPROVE === "true";
+  return (
+    process.env.NODE_ENV === "development" ||
+    process.env.WALLET_MOCK_AUTO_APPROVE === "true"
+  );
 }
 
 // ── 금액 / 상품권 검증 ────────────────────────────────────────────
 
-export function assertChargeAmount(value: unknown, min = CHARGE_MIN_AMOUNT, step = 1000): number {
+export function assertChargeAmount(
+  value: unknown,
+  min = CHARGE_MIN_AMOUNT,
+  step = 1000,
+): number {
   const n = typeof value === "string" ? Number(value) : value;
   if (typeof n !== "number" || !Number.isInteger(n)) {
     throw new WalletError("충전 금액이 올바르지 않습니다.");
   }
-  if (n < min) throw new WalletError(`충전 금액은 ${min.toLocaleString("ko-KR")}원 이상이어야 합니다.`);
+  if (n < min)
+    throw new WalletError(
+      `충전 금액은 ${min.toLocaleString("ko-KR")}원 이상이어야 합니다.`,
+    );
   if (n > CHARGE_MAX_AMOUNT) {
-    throw new WalletError(`1회 충전 한도는 ${CHARGE_MAX_AMOUNT.toLocaleString("ko-KR")}원입니다.`);
+    throw new WalletError(
+      `1회 충전 한도는 ${CHARGE_MAX_AMOUNT.toLocaleString("ko-KR")}원입니다.`,
+    );
   }
-  if (n % step !== 0) throw new WalletError(`충전 금액은 ${step.toLocaleString("ko-KR")}원 단위여야 합니다.`);
+  if (n % step !== 0)
+    throw new WalletError(
+      `충전 금액은 ${step.toLocaleString("ko-KR")}원 단위여야 합니다.`,
+    );
   return n;
 }
 
@@ -66,11 +81,16 @@ export function assertVoucherType(value: unknown): VoucherTypeKey {
 
 /** PIN 정규화: 공백·하이픈 제거 + 대문자 (대소문자 구분 없음) */
 export function normalizeVoucherPin(raw: unknown): string {
-  if (typeof raw !== "string") throw new WalletError("상품권 PIN 번호를 입력해 주세요.");
+  if (typeof raw !== "string")
+    throw new WalletError("상품권 PIN 번호를 입력해 주세요.");
   const pin = raw.replace(/[\s-]/g, "").toUpperCase();
   if (!pin) throw new WalletError("상품권 PIN 번호를 입력해 주세요.");
-  if (!/^[A-Z0-9]+$/.test(pin)) throw new WalletError("PIN 번호는 영문과 숫자만 입력할 수 있습니다.");
-  if (pin.length < VOUCHER_PIN_MIN_LENGTH || pin.length > VOUCHER_PIN_MAX_LENGTH) {
+  if (!/^[A-Z0-9]+$/.test(pin))
+    throw new WalletError("PIN 번호는 영문과 숫자만 입력할 수 있습니다.");
+  if (
+    pin.length < VOUCHER_PIN_MIN_LENGTH ||
+    pin.length > VOUCHER_PIN_MAX_LENGTH
+  ) {
     throw new WalletError(
       `PIN 번호는 ${VOUCHER_PIN_MIN_LENGTH}~${VOUCHER_PIN_MAX_LENGTH}자리여야 합니다.`,
     );
@@ -92,8 +112,14 @@ export function maskVoucherPin(pin: string): string {
  */
 export function hashVoucherPin(pin: string): string {
   const secret = process.env.WALLET_PIN_SECRET || process.env.AUTH_SECRET;
-  if (!secret) throw new WalletError("서버 설정이 완료되지 않아 상품권을 등록할 수 없습니다.", 503);
-  return createHmac("sha256", secret).update(`voucher-pin:${pin}`).digest("hex");
+  if (!secret)
+    throw new WalletError(
+      "서버 설정이 완료되지 않아 상품권을 등록할 수 없습니다.",
+      503,
+    );
+  return createHmac("sha256", secret)
+    .update(`voucher-pin:${pin}`)
+    .digest("hex");
 }
 
 // ── 모의 가상계좌 ─────────────────────────────────────────────────
@@ -120,7 +146,9 @@ export async function getBranchMerchantName(): Promise<string> {
       where: { slug: BRANCH_SELLER_SLUG },
       select: { shopName: true, isApproved: true },
     });
-    return branch?.isApproved && branch.shopName ? branch.shopName : DEFAULT_MERCHANT_NAME;
+    return branch?.isApproved && branch.shopName
+      ? branch.shopName
+      : DEFAULT_MERCHANT_NAME;
   } catch {
     return DEFAULT_MERCHANT_NAME;
   }
@@ -195,10 +223,16 @@ export const CHARGE_DTO_SELECT = {
   createdAt: true,
 } as const;
 
-export async function getWalletSummary(userId: string, take = 50): Promise<WalletSummaryDTO> {
+export async function getWalletSummary(
+  userId: string,
+  take = 50,
+): Promise<WalletSummaryDTO> {
   await expireOverdueCharges(userId);
   const [wallet, charges] = await Promise.all([
-    prisma.userWallet.findUnique({ where: { userId }, select: { balance: true } }),
+    prisma.userWallet.findUnique({
+      where: { userId },
+      select: { balance: true },
+    }),
     prisma.walletCharge.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
@@ -214,12 +248,18 @@ export async function getWalletSummary(userId: string, take = 50): Promise<Walle
  * 새 테이블이 아직 DB 에 반영되지 않았거나(배포 직후 db push 전) 오류가 나도
  * 화면 전체가 깨지지 않도록 null 을 돌려준다.
  */
-export async function getWalletBalanceSafe(userId: string): Promise<number | null> {
+export async function getWalletBalanceSafe(
+  userId: string,
+): Promise<number | null> {
   try {
-    const wallet = await prisma.userWallet.findUnique({ where: { userId }, select: { balance: true } });
+    const wallet = await prisma.userWallet.findUnique({
+      where: { userId },
+      select: { balance: true },
+    });
     return wallet?.balance ?? 0;
   } catch (e) {
-    if (!isMissingDbColumnError(e)) console.error("[wallet] 잔액 조회 실패:", e);
+    if (!isMissingDbColumnError(e))
+      console.error("[wallet] 잔액 조회 실패:", e);
     return null;
   }
 }
@@ -238,14 +278,24 @@ export async function createCharge(
   userId: string,
   userName: string | null | undefined,
   input: CreateChargeInput,
-): Promise<{ charge: WalletChargeDTO; balance: number; autoApproved: boolean }> {
+): Promise<{
+  charge: WalletChargeDTO;
+  balance: number;
+  autoApproved: boolean;
+}> {
   const method = input.method as WalletChargeMethodKey;
-  if (method !== "VIRTUAL_ACCOUNT" && method !== "VOUCHER_PURCHASE" && method !== "VOUCHER_PIN") {
+  if (
+    method !== "VIRTUAL_ACCOUNT" &&
+    method !== "VOUCHER_PURCHASE" &&
+    method !== "VOUCHER_PIN"
+  ) {
     throw new WalletError("결제 방식을 선택해 주세요.");
   }
 
   await expireOverdueCharges(userId);
-  const pendingCount = await prisma.walletCharge.count({ where: { userId, status: "PENDING" } });
+  const pendingCount = await prisma.walletCharge.count({
+    where: { userId, status: "PENDING" },
+  });
   if (pendingCount >= MAX_PENDING_CHARGES) {
     throw new WalletError(
       `처리 대기 중인 충전 요청이 ${MAX_PENDING_CHARGES}건 있습니다. 기존 요청이 처리되거나 취소한 뒤 다시 시도해 주세요.`,
@@ -257,11 +307,20 @@ export async function createCharge(
 
   if (method === "VIRTUAL_ACCOUNT") {
     const amount = assertChargeAmount(input.amount);
-    const depositorRaw = typeof input.depositorName === "string" ? input.depositorName.trim() : "";
+    const depositorRaw =
+      typeof input.depositorName === "string" ? input.depositorName.trim() : "";
     const depositorName = (depositorRaw || userName || "").slice(0, 30) || null;
     const va = issueMockVirtualAccount();
     const row = await prisma.walletCharge.create({
-      data: { userId, method, amount, merchantName, depositorName, ...va, isMock: true },
+      data: {
+        userId,
+        method,
+        amount,
+        merchantName,
+        depositorName,
+        ...va,
+        isMock: true,
+      },
       select: CHARGE_DTO_SELECT,
     });
     const balance = await currentBalance(userId);
@@ -277,19 +336,32 @@ export async function createCharge(
     });
     if (isWalletAutoApproveEnabled()) {
       try {
-        await creditCharge(row.id, null, { memo: "개발 모드 자동 승인 (목업)" });
+        await creditCharge(row.id, null, {
+          memo: "개발 모드 자동 승인 (목업)",
+        });
       } catch (e) {
         // 자동 승인에 실패하면 대기 건으로 남기지 않는다 (나중에 관리자가 중복 승인하는 것 방지)
         await prisma.walletCharge.updateMany({
           where: { id: row.id, status: "PENDING" },
-          data: { status: "REJECTED", processedAt: new Date(), adminMemo: "자동 승인 실패" },
+          data: {
+            status: "REJECTED",
+            processedAt: new Date(),
+            adminMemo: "자동 승인 실패",
+          },
         });
         throw e;
       }
     }
-    const fresh = await prisma.walletCharge.findUniqueOrThrow({ where: { id: row.id }, select: CHARGE_DTO_SELECT });
+    const fresh = await prisma.walletCharge.findUniqueOrThrow({
+      where: { id: row.id },
+      select: CHARGE_DTO_SELECT,
+    });
     const balance = await currentBalance(userId);
-    return { charge: toChargeDTO(fresh), balance, autoApproved: fresh.status === "COMPLETED" };
+    return {
+      charge: toChargeDTO(fresh),
+      balance,
+      autoApproved: fresh.status === "COMPLETED",
+    };
   }
 
   // VOUCHER_PIN
@@ -321,14 +393,21 @@ export async function createCharge(
 }
 
 async function currentBalance(userId: string): Promise<number> {
-  const w = await prisma.userWallet.findUnique({ where: { userId }, select: { balance: true } });
+  const w = await prisma.userWallet.findUnique({
+    where: { userId },
+    select: { balance: true },
+  });
   return w?.balance ?? 0;
 }
 
 /** 지갑 행을 미리 만들어 둔다 (동시 생성 충돌은 무시) */
 async function ensureWallet(userId: string): Promise<void> {
   try {
-    await prisma.userWallet.upsert({ where: { userId }, create: { userId }, update: {} });
+    await prisma.userWallet.upsert({
+      where: { userId },
+      create: { userId },
+      update: {},
+    });
   } catch (e) {
     if ((e as { code?: string })?.code !== "P2002") throw e;
   }
@@ -348,18 +427,32 @@ export async function creditCharge(
 ): Promise<{ balance: number; amount: number }> {
   const charge = await prisma.walletCharge.findUnique({
     where: { id: chargeId },
-    select: { id: true, userId: true, method: true, status: true, amount: true, vbankDueAt: true },
+    select: {
+      id: true,
+      userId: true,
+      method: true,
+      status: true,
+      amount: true,
+      vbankDueAt: true,
+    },
   });
   if (!charge) throw new WalletError("충전 요청을 찾을 수 없습니다.", 404);
-  if (charge.status !== "PENDING") throw new WalletError("이미 처리된 요청입니다.", 409);
-  if (charge.method === "VIRTUAL_ACCOUNT" && charge.vbankDueAt && charge.vbankDueAt < new Date()) {
+  if (charge.status !== "PENDING")
+    throw new WalletError("이미 처리된 요청입니다.", 409);
+  if (
+    charge.method === "VIRTUAL_ACCOUNT" &&
+    charge.vbankDueAt &&
+    charge.vbankDueAt < new Date()
+  ) {
     await expireOverdueCharges(charge.userId);
     throw new WalletError("입금기한이 지난 가상계좌입니다.", 409);
   }
 
   // 보유 상품권은 실제 액면가(예: 5,500원)가 다양하므로 10원 단위까지 허용
   const amount =
-    charge.method === "VOUCHER_PIN" ? assertChargeAmount(opts.amount, 1000, 10) : charge.amount;
+    charge.method === "VOUCHER_PIN"
+      ? assertChargeAmount(opts.amount, 1000, 10)
+      : charge.amount;
   if (amount <= 0) throw new WalletError("충전 금액이 올바르지 않습니다.");
   const memo = opts.memo ? String(opts.memo).slice(0, 500) : null;
 
@@ -372,7 +465,9 @@ export async function creditCharge(
         id: chargeId,
         status: "PENDING",
         // 가상계좌는 승인 시점에도 입금기한 안이어야 한다
-        ...(charge.method === "VIRTUAL_ACCOUNT" ? { OR: [{ vbankDueAt: null }, { vbankDueAt: { gt: now } }] } : {}),
+        ...(charge.method === "VIRTUAL_ACCOUNT"
+          ? { OR: [{ vbankDueAt: null }, { vbankDueAt: { gt: now } }] }
+          : {}),
       },
       data: {
         status: "COMPLETED",
@@ -382,7 +477,11 @@ export async function creditCharge(
         ...(memo ? { adminMemo: memo } : {}),
       },
     });
-    if (updated.count !== 1) throw new WalletError("이미 처리되었거나 입금기한이 지난 요청입니다.", 409);
+    if (updated.count !== 1)
+      throw new WalletError(
+        "이미 처리되었거나 입금기한이 지난 요청입니다.",
+        409,
+      );
 
     const wallet = await tx.userWallet.update({
       where: { userId: charge.userId },
@@ -410,7 +509,11 @@ export async function creditCharge(
   });
 }
 
-export async function rejectCharge(chargeId: string, processedById: string, memo?: string | null): Promise<void> {
+export async function rejectCharge(
+  chargeId: string,
+  processedById: string,
+  memo?: string | null,
+): Promise<void> {
   const updated = await prisma.walletCharge.updateMany({
     where: { id: chargeId, status: "PENDING" },
     data: {
@@ -423,19 +526,36 @@ export async function rejectCharge(chargeId: string, processedById: string, memo
   });
   if (updated.count !== 1) {
     const exists = await prisma.walletCharge.count({ where: { id: chargeId } });
-    throw new WalletError(exists ? "이미 처리된 요청입니다." : "충전 요청을 찾을 수 없습니다.", exists ? 409 : 404);
+    throw new WalletError(
+      exists ? "이미 처리된 요청입니다." : "충전 요청을 찾을 수 없습니다.",
+      exists ? 409 : 404,
+    );
   }
 }
 
 /** 회원 본인의 대기 중 요청 취소 */
-export async function cancelChargeByUser(chargeId: string, userId: string): Promise<void> {
+export async function cancelChargeByUser(
+  chargeId: string,
+  userId: string,
+): Promise<void> {
   const updated = await prisma.walletCharge.updateMany({
     where: { id: chargeId, userId, status: "PENDING" },
-    data: { status: "CANCELLED", voucherPinHash: null, processedAt: new Date() },
+    data: {
+      status: "CANCELLED",
+      voucherPinHash: null,
+      processedAt: new Date(),
+    },
   });
   if (updated.count !== 1) {
-    const mine = await prisma.walletCharge.count({ where: { id: chargeId, userId } });
-    throw new WalletError(mine ? "이미 처리된 요청은 취소할 수 없습니다." : "충전 요청을 찾을 수 없습니다.", mine ? 409 : 404);
+    const mine = await prisma.walletCharge.count({
+      where: { id: chargeId, userId },
+    });
+    throw new WalletError(
+      mine
+        ? "이미 처리된 요청은 취소할 수 없습니다."
+        : "충전 요청을 찾을 수 없습니다.",
+      mine ? 409 : 404,
+    );
   }
 }
 
@@ -448,10 +568,16 @@ export function walletErrorResponse(e: unknown): Response {
   }
   if (isMissingDbColumnError(e)) {
     return Response.json(
-      { error: "충전 결제 기능의 DB가 아직 준비되지 않았습니다. 관리자에게 문의해 주세요." },
+      {
+        error:
+          "충전 결제 기능의 DB가 아직 준비되지 않았습니다. 관리자에게 문의해 주세요.",
+      },
       { status: 503 },
     );
   }
   console.error("[wallet] 처리 오류:", e);
-  return Response.json({ error: "처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요." }, { status: 500 });
+  return Response.json(
+    { error: "처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요." },
+    { status: 500 },
+  );
 }

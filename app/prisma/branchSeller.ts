@@ -11,7 +11,8 @@ export const BRANCH_SELLER = {
   name: "바닐라폼 지점",
   slug: "vanillaform-branch",
   shopName: "바닐라폼 지점",
-  shopDescription: "바닐라폼 공식 테스트 지점입니다. 충전 결제(목업) 흐름 확인용 셀러입니다.",
+  shopDescription:
+    "바닐라폼 공식 테스트 지점입니다. 충전 결제(목업) 흐름 확인용 셀러입니다.",
 };
 
 /**
@@ -19,11 +20,19 @@ export const BRANCH_SELLER = {
  * - 계정이 있으면 비밀번호·역할을 바꾸지 않는다.
  * - 셀러 프로필이 없을 때만 새로 만든다.
  */
-export async function ensureBranchSeller(prisma: PrismaClient): Promise<{ created: boolean }> {
+export async function ensureBranchSeller(
+  prisma: PrismaClient,
+): Promise<{ created: boolean }> {
   const existing = await prisma.user.findUnique({
     where: { email: BRANCH_SELLER.email },
-    select: { id: true, sellerProfile: { select: { id: true } } },
+    select: { id: true, role: true, sellerProfile: { select: { id: true } } },
   });
+  if (existing && existing.role !== Role.SELLER) {
+    console.warn(
+      `  ! ${BRANCH_SELLER.email} 계정이 셀러가 아니라(${existing.role}) 지점 셀러를 만들지 않았습니다.`,
+    );
+    return { created: false };
+  }
 
   let userId = existing?.id;
   let created = false;
@@ -50,7 +59,9 @@ export async function ensureBranchSeller(prisma: PrismaClient): Promise<{ create
       select: { userId: true },
     });
     if (slugTaken && slugTaken.userId !== userId) {
-      console.warn(`  ! slug "${BRANCH_SELLER.slug}" 가 다른 계정에 이미 사용 중이라 지점 프로필 생성을 건너뜁니다.`);
+      console.warn(
+        `  ! slug "${BRANCH_SELLER.slug}" 가 다른 계정에 이미 사용 중이라 지점 프로필 생성을 건너뜁니다.`,
+      );
       return { created };
     }
     if (!slugTaken) {

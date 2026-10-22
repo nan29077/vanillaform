@@ -2,7 +2,11 @@ import { redirect } from "next/navigation";
 import { requireBuyerSession } from "@/lib/buyerGuard";
 import { getFeatureFlags } from "@/lib/settings";
 import { isMissingDbColumnError } from "@/lib/prismaErrors";
-import { getBranchMerchantName, getWalletSummary, isWalletAutoApproveEnabled } from "@/lib/wallet";
+import {
+  getBranchMerchantName,
+  getWalletSummary,
+  isWalletAutoApproveEnabled,
+} from "@/lib/wallet";
 import type { WalletSummaryDTO } from "@/lib/walletShared";
 import WalletChargeClient from "@/components/shared/WalletChargeClient";
 
